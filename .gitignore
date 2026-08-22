@@ -1,0 +1,28 @@
+# Java / Maven
+**/target/
+*.class
+*.jar
+*.war
+*.iml
+.idea/
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+.eslintcache
+
+# 环境与密钥
+.env
+.env.*
+**/application-local.yml
+
+# 工具与缓存
+.playwright-mcp/
+.reasonix/
+*.log
+
+# 本地测试截图
+*.png

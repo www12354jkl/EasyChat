@@ -1,0 +1,26 @@
+[
+  {
+    "resource": "/api/auth/login",
+    "limitApp": "default",
+    "grade": 1,
+    "count": 20,
+    "strategy": 0,
+    "controlBehavior": 0
+  },
+  {
+    "resource": "/api/auth/register",
+    "limitApp": "default",
+    "grade": 1,
+    "count": 10,
+    "strategy": 0,
+    "controlBehavior": 0
+  },
+  {
+    "resource": "/api/auth/send-verify-code",
+    "limitApp": "default",
+    "grade": 1,
+    "count": 5,
+    "strategy": 0,
+    "controlBehavior": 0
+  }
+]

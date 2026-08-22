@@ -1,0 +1,77 @@
+server:
+    port: 8080
+
+easychat:
+    ws:
+        # Netty WebSocket 独立端口，与 chat HTTP 服务同机部署
+        uri: http://127.0.0.1:8083
+
+spring:
+    application:
+        name: easychat-gateway
+    profiles:
+        active: ${SPRING_PROFILES_ACTIVE:local}
+    main:
+        web-application-type: reactive
+    cloud:
+        nacos:
+            discovery:
+                server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+                username: ${NACOS_USERNAME:nacos}
+                password: ${NACOS_PASSWORD:}
+            config:
+                import-check:
+                    enabled: false
+        gateway:
+            server:
+                webflux:
+                    globalcors:
+                        cors-configurations:
+                            '[/**]':
+                                allowedOriginPatterns: "*"
+                                allowedMethods: "*"
+                                allowedHeaders: "*"
+                                allowCredentials: true
+                    routes:
+                        - id: easychat-user
+                          uri: lb://easychat-user-service
+                          predicates:
+                              - Path=/api/auth/**,/api/user/**
+                        - id: easychat-chat
+                          uri: lb://easychat-chat-service
+                          predicates:
+                              - Path=/api/chat/**
+                        - id: easychat-ws
+                          uri: ${easychat.ws.uri}
+                          predicates:
+                              - Path=/ws,/ws/**
+        sentinel:
+            transport:
+                dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
+                port: 8719
+            eager: true
+            scg:
+                fallback:
+                    mode: response
+                    response-status: 429
+                    content-type: application/json
+                    response-body: '{"code":429,"message":"请求过于频繁，请稍后再试"}'
+            datasource:
+                gw-flow-file:
+                    file:
+                        file: classpath:sentinel/gw-flow.json
+                        data-type: json
+                        rule-type: gw-flow
+                gw-flow-nacos:
+                    nacos:
+                        server-addr: ${spring.cloud.nacos.discovery.server-addr}
+                        username: ${spring.cloud.nacos.discovery.username}
+                        password: ${spring.cloud.nacos.discovery.password}
+                        data-id: easychat-gateway-gw-flow
+                        group-id: SENTINEL_GROUP
+                        data-type: json
+                        rule-type: gw-flow
+
+logging:
+    level:
+        org.springframework.cloud.gateway: INFO
