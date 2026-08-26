@@ -45,6 +45,18 @@ spring:
                           uri: ${easychat.ws.uri}
                           predicates:
                               - Path=/ws,/ws/**
+                        - id: user-api-docs
+                          uri: lb://easychat-user-service
+                          predicates:
+                              - Path=/v3/api-docs/user
+                          filters:
+                              - SetPath=/v3/api-docs
+                        - id: chat-api-docs
+                          uri: lb://easychat-chat-service
+                          predicates:
+                              - Path=/v3/api-docs/chat
+                          filters:
+                              - SetPath=/v3/api-docs
         sentinel:
             transport:
                 dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
@@ -75,3 +87,18 @@ spring:
 logging:
     level:
         org.springframework.cloud.gateway: INFO
+
+springdoc:
+    api-docs:
+        enabled: false
+    swagger-ui:
+        enabled: false
+        disable-swagger-default-url: true
+        persist-authorization: true
+        try-it-out-enabled: true
+        urls-primary-name: user
+        urls:
+            - name: user
+              url: /v3/api-docs/user
+            - name: chat
+              url: /v3/api-docs/chat

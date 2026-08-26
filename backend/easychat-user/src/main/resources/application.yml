@@ -79,6 +79,10 @@ springdoc:
         enabled: false
     swagger-ui:
         enabled: false
+        persist-authorization: true
+        disable-swagger-default-url: true
+        try-it-out-enabled: true
+    paths-to-exclude: /api/internal/**
 
 tencent:
   cos:

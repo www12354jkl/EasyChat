@@ -46,6 +46,10 @@
             <groupId>com.alibaba.csp</groupId>
             <artifactId>sentinel-datasource-nacos</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+        </dependency>
         <!-- 网关不需要配置中心，避免引入多余依赖 -->
         <dependency>
             <groupId>com.alibaba.cloud</groupId>

@@ -8,10 +8,12 @@ import org.springframework.web.bind.annotation.RestController;
 import com.faust.easychat.mapper.FriendMapper;
 import com.faust.easychat.result.Result;
 
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@Hidden
 @RestController
 @RequestMapping("/api/internal")
 @RequiredArgsConstructor

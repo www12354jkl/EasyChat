@@ -21,12 +21,14 @@ import com.faust.easychat.dto.user.friend.HandleRequestReq;
 import com.faust.easychat.result.Result;
 import com.faust.easychat.service.FriendService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@Tag(name = "好友")
+@Tag(name = "好友", description = "搜索用户、好友申请、好友列表")
 @RestController
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
@@ -34,35 +36,45 @@ public class FriendController {
 
     private final FriendService friendService;
 
+    @Operation(summary = "搜索用户")
     @GetMapping("/search")
-    public Result<List<UserBriefDTO>> searchUser(@RequestParam(required = true) String keyword) {
+    public Result<List<UserBriefDTO>> searchUser(
+            @Parameter(description = "昵称或邮箱关键字", required = true) @RequestParam String keyword) {
         return Result.success(friendService.searchUser(keyword));
     }
 
+    @Operation(summary = "发送好友申请")
     @PostMapping("/friend/request")
     public Result<Map<String, String>> addFriend(@RequestBody AddFriendRequest request) {
         String status = friendService.addFriend(request);
         return Result.success(Map.of("status", status));
     }
 
+    @Operation(summary = "我收到的好友申请")
     @GetMapping("/friend/requests")
     public Result<List<FriendRequestDTO>> myRequests() {
         return Result.success(friendService.myRequests());
     }
 
+    @Operation(summary = "处理好友申请", description = "status：1=同意，2=拒绝")
     @PutMapping("/friend/request/{id}")
-    public Result<Void> handleRequest(@PathVariable String id, @RequestBody HandleRequestReq req) {
+    public Result<Void> handleRequest(
+            @Parameter(description = "申请 id") @PathVariable String id,
+            @RequestBody HandleRequestReq req) {
         friendService.handleRequest(id, req);
         return Result.success();
     }
 
+    @Operation(summary = "好友列表")
     @GetMapping("/friends")
     public Result<List<FriendDTO>> getFriendList() {
         return Result.success(friendService.getFriendList());
     }
 
+    @Operation(summary = "删除好友")
     @DeleteMapping("/friend/{id}")
-    public Result<Void> deleteFriend(@PathVariable String id) {
+    public Result<Void> deleteFriend(
+            @Parameter(description = "好友用户 id") @PathVariable String id) {
         friendService.deleteFriend(id);
         return Result.success();
     }

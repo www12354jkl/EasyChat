@@ -90,6 +90,11 @@
 				<version>${springdoc.version}</version>
 			</dependency>
 			<dependency>
+				<groupId>org.springdoc</groupId>
+				<artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+				<version>${springdoc.version}</version>
+			</dependency>
+			<dependency>
 				<groupId>com.qcloud</groupId>
 				<artifactId>cos_api</artifactId>
 				<version>5.6.275</version>

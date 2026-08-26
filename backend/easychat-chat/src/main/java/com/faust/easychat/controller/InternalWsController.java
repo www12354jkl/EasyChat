@@ -11,8 +11,10 @@ import com.faust.easychat.dto.user.friend.FriendRequestHandledDTO;
 import com.faust.easychat.netty.WsMessageSender;
 import com.faust.easychat.result.Result;
 
+import io.swagger.v3.oas.annotations.Hidden;
 import lombok.RequiredArgsConstructor;
 
+@Hidden
 @RestController
 @RequestMapping("/api/internal/ws")
 @RequiredArgsConstructor
