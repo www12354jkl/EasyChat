@@ -65,7 +65,7 @@ export function forgetPassword(params: ForgetPasswordParams): Promise<void> {
   return request<void>('/api/auth/forget-password', { method: 'PUT', body: params, auth: false })
 }
 
-// 登出：后端将 token 拉黑
-export function logout(): Promise<void> {
-  return request<void>('/api/auth/logout', { method: 'POST' })
+// 登出：后端将 accessToken 与 refreshToken 一并拉黑
+export function logout(refreshToken: string): Promise<void> {
+  return request<void>('/api/auth/logout', { method: 'POST', body: { refreshToken } })
 }

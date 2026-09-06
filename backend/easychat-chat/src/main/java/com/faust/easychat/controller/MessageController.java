@@ -50,6 +50,13 @@ public class MessageController {
         return Result.success(messageService.sendMessage(request));
     }
 
+    @Operation(summary = "撤回消息", description = "仅发送者可在发送后 2 分钟内撤回文本/图片/文件消息")
+    @PostMapping("/message/{messageId}/recall")
+    public Result<MessageDTO> recallMessage(
+            @Parameter(description = "消息 id") @PathVariable String messageId) {
+        return Result.success(messageService.recallMessage(messageId));
+    }
+
     @Operation(summary = "会话消息历史")
     @GetMapping("/messages")
     public Result<PageResult<MessageDTO>> getChatHistory(
@@ -96,7 +103,7 @@ public class MessageController {
         return Result.success(messageService.upload(file));
     }
 
-    @Operation(summary = "清空会话消息")
+    @Operation(summary = "清空会话消息（仅自己可见，不影响对方）")
     @DeleteMapping("/conversation/{conversationId}/messages")
     public Result<Integer> deleteChatHistory(
             @Parameter(description = "会话 id") @PathVariable String conversationId) {

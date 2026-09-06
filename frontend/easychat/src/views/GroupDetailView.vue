@@ -2,10 +2,12 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getGroupDetail, kickGroupMember, quitGroup, updateGroupInfo, uploadGroupAvatar, setGroupMemberRole, clearConversationMessages } from '@/api/chat'
+import { clearLocalMessages } from '@/utils/messageDb'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useToastStore } from '@/stores/toast'
 import { ws } from '@/api/ws'
+import { ecAvatarStyle } from '@/utils/ec-ui'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import GroupEditModal from '@/components/GroupEditModal.vue'
 import ChatHistoryModal from '@/components/ChatHistoryModal.vue'
@@ -15,7 +17,7 @@ import GroupJoinRequestsPanel from '@/components/GroupJoinRequestsPanel.vue'
 import type { ConversationRemovedEvent, ConversationUpdate, GroupDetail, GroupMember, GroupJoinRequestHandledEvent } from '@/types/chat'
 
 const props = defineProps<{ id?: string }>()
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; cleared: [conversationId: string] }>()
 
 const route = useRoute()
 const router = useRouter()
@@ -124,9 +126,7 @@ const manageableMembers = computed(() => {
 
 // 头像：图片 URL 显示图片；空/色值显示昵称首字
 function avatarStyle(m: GroupMember): Record<string, string> {
-  return {
-    backgroundColor: m.avatar?.startsWith('#') ? m.avatar : '#07C160',
-  }
+  return ecAvatarStyle(m.avatar)
 }
 
 function isImageAvatar(m: GroupMember): boolean {
@@ -243,7 +243,17 @@ async function handleConfirm() {
   if (type === 'clear') {
     try {
       await clearConversationMessages(groupId)
+      const uid = auth.user?.userId
+      if (uid) {
+        try {
+          await clearLocalMessages(uid, groupId)
+        } catch {
+          // IndexedDB 不可用时忽略
+        }
+      }
       chatStore.updateConversation(groupId, { lastMessage: '', lastTime: '' })
+      chatHistoryOpen.value = false
+      emit('cleared', groupId)
       toast.success('聊天记录已清除')
     } catch (e) {
       toast.error((e as Error).message)
@@ -278,13 +288,12 @@ async function quitGroupAction() {
 </script>
 
 <template>
-  <div class="flex h-full flex-col bg-[#F5F5F5]">
-    <!-- 顶部：标题 + 关闭 -->
-    <header class="flex h-[48px] shrink-0 items-center justify-between border-b border-[#E5E5E5] bg-white px-4">
-      <h1 class="truncate text-base font-medium text-[#1A1A1A]">群聊信息</h1>
+  <div class="ec-page">
+    <header class="ec-page-header justify-between">
+      <h1 class="ec-page-title truncate">群聊信息</h1>
       <button
         type="button"
-        class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-[#8A8A8A] transition-colors hover:bg-[#F5F5F5] hover:text-[#1A1A1A]"
+        class="ec-icon-btn"
         title="关闭"
         @click="onBack"
       >
@@ -296,9 +305,9 @@ async function quitGroupAction() {
 
     <div class="flex-1 overflow-y-auto">
       <!-- 群成员卡片 -->
-      <div class="bg-white px-4 py-4">
+      <div class="bg-[var(--ec-bg)] px-4 py-4">
         <!-- 搜索栏 -->
-        <div class="flex items-center gap-2 rounded-md bg-[#F7F7F7] px-3 py-1.5">
+        <div class="ec-search-box">
           <svg class="h-4 w-4 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.3-4.3" stroke-linecap="round" />
@@ -313,11 +322,11 @@ async function quitGroupAction() {
 
         <!-- 成员标题 + 折叠开关 -->
         <div class="mt-4 flex items-center justify-between">
-          <p class="text-sm font-medium text-[#1A1A1A]">群成员（{{ detail?.total ?? 0 }}）</p>
+          <p class="text-sm font-medium text-[var(--ec-text)]">群成员（{{ detail?.total ?? 0 }}）</p>
           <button
             v-if="hasMoreMembers"
             type="button"
-            class="cursor-pointer text-xs text-[#B2B2B2] transition-colors hover:text-[#8A8A8A]"
+            class="cursor-pointer text-xs text-[var(--ec-text-faint)] transition-colors hover:text-[var(--ec-text-muted)]"
             @click="membersExpanded = !membersExpanded"
           >
             {{ membersExpanded ? '收起' : `展开全部 ${filteredMembers.length} 人` }}
@@ -334,8 +343,8 @@ async function quitGroupAction() {
               <img v-if="isImageAvatar(m)" :src="m.avatar" class="h-full w-full object-cover" alt="头像" />
               <span v-else>{{ m.nickname.charAt(0) }}</span>
             </div>
-            <p class="w-full truncate text-center text-xs text-[#1A1A1A]">{{ m.nickname }}</p>
-            <p v-if="m.userId === detail?.ownerId || m.role === 2" class="w-full text-center text-[10px] text-[#B2B2B2]">
+            <p class="w-full truncate text-center text-xs text-[var(--ec-text)]">{{ m.nickname }}</p>
+            <p v-if="m.userId === detail?.ownerId || m.role === 2" class="w-full text-center text-[10px] text-[var(--ec-text-faint)]">
               {{ m.userId === detail?.ownerId ? '群主' : '管理员' }}
             </p>
           </div>
@@ -344,7 +353,7 @@ async function quitGroupAction() {
           <div class="flex min-w-0 flex-col items-center gap-1.5">
             <button
               type="button"
-              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-[4px] bg-[#F0F0F0] text-[#07C160] transition-colors hover:bg-[#E5E5E5]"
+              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-[var(--ec-radius)] bg-[var(--ec-primary-soft)] text-[var(--ec-primary)] transition-colors duration-200 hover:bg-[var(--ec-primary-muted)]"
               title="邀请成员"
               @click="addMembersOpen = true"
             >
@@ -352,18 +361,18 @@ async function quitGroupAction() {
                 <path d="M12 5v14M5 12h14" />
               </svg>
             </button>
-            <p class="w-full truncate text-center text-xs text-[#B2B2B2]">邀请</p>
+            <p class="w-full truncate text-center text-xs text-[var(--ec-text-faint)]">邀请</p>
           </div>
         </div>
 
         <!-- 成员管理（群主/管理员） -->
-        <div v-if="isAdmin" class="mt-4 border-t border-[#F0F0F0] pt-3">
-          <p class="text-sm font-medium text-[#1A1A1A]">成员管理</p>
+        <div v-if="isAdmin" class="mt-4 border-t border-[var(--ec-border)] pt-3">
+          <p class="text-sm font-medium text-[var(--ec-text)]">成员管理</p>
           <div class="mt-2 space-y-1">
             <div
               v-for="m in manageableMembers"
               :key="m.userId"
-              class="flex items-center gap-3 rounded-md px-1 py-1.5"
+              class="flex items-center gap-3 rounded-[var(--ec-radius)] px-1 py-1.5"
             >
               <div
                 class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[4px] text-xs font-medium text-white"
@@ -373,14 +382,14 @@ async function quitGroupAction() {
                 <span v-else>{{ m.nickname.charAt(0) }}</span>
               </div>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm text-[#1A1A1A]">{{ m.nickname }}</p>
-                <p class="text-xs text-[#B2B2B2]">{{ m.role === 2 ? '管理员' : '成员' }}</p>
+                <p class="truncate text-sm text-[var(--ec-text)]">{{ m.nickname }}</p>
+                <p class="text-xs text-[var(--ec-text-faint)]">{{ m.role === 2 ? '管理员' : '成员' }}</p>
               </div>
               <div class="flex shrink-0 gap-2">
                 <button
                   v-if="isOwner"
                   type="button"
-                  class="cursor-pointer rounded-md border border-[#E5E5E5] px-3 py-1 text-xs text-[#576B95] transition-colors hover:bg-[#F5F5F5]"
+                  class="cursor-pointer rounded-[var(--ec-radius)] border border-[var(--ec-border)] px-3 py-1 text-xs text-[var(--ec-primary)] transition-colors hover:bg-[var(--ec-bg-subtle)]"
                   @click="toggleAdmin(m)"
                 >
                   {{ m.role === 2 ? '取消管理员' : '设为管理员' }}
@@ -388,7 +397,7 @@ async function quitGroupAction() {
                 <button
                   v-if="canKick(m)"
                   type="button"
-                  class="cursor-pointer rounded-md border border-[#FA5151]/30 px-3 py-1 text-xs text-[#FA5151] transition-colors hover:bg-[#FFF5F5]"
+                  class="cursor-pointer rounded-[var(--ec-radius)] border border-red-200 px-3 py-1 text-xs text-[var(--ec-danger)] transition-colors hover:bg-red-50"
                   @click="openKickConfirm(m)"
                 >
                   移出群聊
@@ -400,14 +409,14 @@ async function quitGroupAction() {
       </div>
 
       <!-- 群信息设置 -->
-      <div class="mt-3 bg-white">
+      <div class="mt-3 bg-[var(--ec-bg)]">
         <!-- 群头像 -->
         <div class="flex items-center justify-between px-4 py-3">
-          <span class="text-sm text-[#1A1A1A]">群头像</span>
+          <span class="text-sm text-[var(--ec-text)]">群头像</span>
           <div class="flex items-center gap-3">
             <div
               class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[4px] text-sm font-medium text-white"
-              :style="{ backgroundColor: detail?.avatar?.startsWith('#') ? detail.avatar : '#07C160' }"
+              :style="ecAvatarStyle(detail?.avatar)"
             >
               <img
                 v-if="detail?.avatar && !detail.avatar.startsWith('#')"
@@ -420,22 +429,22 @@ async function quitGroupAction() {
             <button
               v-if="isAdmin"
               type="button"
-              class="cursor-pointer rounded-md border border-[#E5E5E5] px-3 py-1 text-xs text-[#576B95] transition-colors hover:bg-[#F5F5F5]"
+              class="cursor-pointer rounded-[var(--ec-radius)] border border-[var(--ec-border)] px-3 py-1 text-xs text-[var(--ec-primary)] transition-colors hover:bg-[var(--ec-bg-subtle)]"
               @click="triggerAvatarSelect"
             >
               更换
             </button>
           </div>
         </div>
-        <div class="mx-4 border-t border-[#F0F0F0]"></div>
+        <div class="mx-4 border-t border-[var(--ec-border)]"></div>
 
         <!-- 群昵称 -->
         <div class="flex items-center justify-between px-4 py-3">
-          <span class="text-sm text-[#1A1A1A]">群昵称</span>
+          <span class="text-sm text-[var(--ec-text)]">群昵称</span>
           <button
             v-if="isAdmin"
             type="button"
-            class="flex max-w-[60%] cursor-pointer items-center gap-1 text-sm text-[#8A8A8A] transition-colors hover:text-[#1A1A1A]"
+            class="flex max-w-[60%] cursor-pointer items-center gap-1 text-sm text-[var(--ec-text-muted)] transition-colors hover:text-[var(--ec-text)]"
             @click="openEditName"
           >
             <span class="truncate">{{ detail?.name }}</span>
@@ -443,17 +452,17 @@ async function quitGroupAction() {
               <path d="m9 18 6-6-6-6" />
             </svg>
           </button>
-          <span v-else class="max-w-[60%] truncate text-sm text-[#8A8A8A]">{{ detail?.name }}</span>
+          <span v-else class="max-w-[60%] truncate text-sm text-[var(--ec-text-muted)]">{{ detail?.name }}</span>
         </div>
-        <div class="mx-4 border-t border-[#F0F0F0]"></div>
+        <div class="mx-4 border-t border-[var(--ec-border)]"></div>
 
         <!-- 群公告 -->
         <div class="flex items-center justify-between px-4 py-3">
-          <span class="text-sm text-[#1A1A1A]">群公告</span>
+          <span class="text-sm text-[var(--ec-text)]">群公告</span>
           <button
             v-if="isAdmin"
             type="button"
-            class="flex max-w-[60%] cursor-pointer items-center gap-1 text-sm text-[#8A8A8A] transition-colors hover:text-[#1A1A1A]"
+            class="flex max-w-[60%] cursor-pointer items-center gap-1 text-sm text-[var(--ec-text-muted)] transition-colors hover:text-[var(--ec-text)]"
             @click="openEditAnnouncement"
           >
             <span class="truncate">{{ detail?.announcement || '暂无公告' }}</span>
@@ -461,16 +470,16 @@ async function quitGroupAction() {
               <path d="m9 18 6-6-6-6" />
             </svg>
           </button>
-          <span v-else class="max-w-[60%] truncate text-sm text-[#8A8A8A]">{{ detail?.announcement || '暂无公告' }}</span>
+          <span v-else class="max-w-[60%] truncate text-sm text-[var(--ec-text-muted)]">{{ detail?.announcement || '暂无公告' }}</span>
         </div>
-        <div v-if="isAdmin" class="mx-4 border-t border-[#F0F0F0]"></div>
+        <div v-if="isAdmin" class="mx-4 border-t border-[var(--ec-border)]"></div>
 
         <!-- 入群验证方式（仅群主/管理员可见） -->
         <div v-if="isAdmin" class="flex items-center justify-between px-4 py-3">
-          <span class="text-sm text-[#1A1A1A]">入群验证方式</span>
+          <span class="text-sm text-[var(--ec-text)]">入群验证方式</span>
           <button
             type="button"
-            class="flex cursor-pointer items-center gap-1 text-sm text-[#8A8A8A] transition-colors hover:text-[#1A1A1A]"
+            class="flex cursor-pointer items-center gap-1 text-sm text-[var(--ec-text-muted)] transition-colors hover:text-[var(--ec-text)]"
             @click="toggleJoinVerify"
           >
             {{ detail?.joinVerify === 1 ? '需要验证' : '无需验证' }}
@@ -479,14 +488,14 @@ async function quitGroupAction() {
             </svg>
           </button>
         </div>
-        <div class="mx-4 border-t border-[#F0F0F0]"></div>
+        <div class="mx-4 border-t border-[var(--ec-border)]"></div>
 
         <!-- 聊天记录 -->
         <div class="flex items-center justify-between px-4 py-3">
-          <span class="text-sm text-[#1A1A1A]">聊天记录</span>
+          <span class="text-sm text-[var(--ec-text)]">聊天记录</span>
           <button
             type="button"
-            class="flex cursor-pointer items-center gap-1 text-sm text-[#8A8A8A] transition-colors hover:text-[#1A1A1A]"
+            class="flex cursor-pointer items-center gap-1 text-sm text-[var(--ec-text-muted)] transition-colors hover:text-[var(--ec-text)]"
             @click="openChatHistory"
           >
             查看
@@ -498,23 +507,23 @@ async function quitGroupAction() {
       </div>
 
         <!-- 入群申请（仅群主/管理员） -->
-        <div v-if="isAdmin" class="mt-3 bg-white px-4 py-4">
+        <div v-if="isAdmin" class="mt-3 bg-[var(--ec-bg)] px-4 py-4">
           <GroupJoinRequestsPanel :conversation-id="groupId" :show-title="true" />
         </div>
 
         <!-- 危险操作 -->
-      <div class="mt-3 bg-white">
+      <div class="mt-3 bg-[var(--ec-bg)]">
         <button
           type="button"
-          class="w-full cursor-pointer px-4 py-3 text-left text-sm text-[#FA5151] transition-colors hover:bg-[#FFF5F5]"
+          class="w-full cursor-pointer px-4 py-3 text-left text-sm text-[var(--ec-danger)] transition-colors hover:bg-red-50"
           @click="confirmState = { type: 'clear' }"
         >
           删除聊天记录
         </button>
-        <div class="mx-4 border-t border-[#F0F0F0]"></div>
+        <div class="mx-4 border-t border-[var(--ec-border)]"></div>
         <button
           type="button"
-          class="w-full cursor-pointer px-4 py-3 text-left text-sm text-[#FA5151] transition-colors hover:bg-[#FFF5F5]"
+          class="w-full cursor-pointer px-4 py-3 text-left text-sm text-[var(--ec-danger)] transition-colors hover:bg-red-50"
           @click="confirmState = { type: 'quit' }"
         >
           退出群聊
@@ -536,7 +545,7 @@ async function quitGroupAction() {
     <ConfirmModal
       v-if="confirmState"
       :title="confirmState.type === 'clear' ? '删除聊天记录' : confirmState.type === 'kick' ? '移出群聊' : '退出群聊'"
-      :message="confirmState.type === 'clear' ? '确定删除与该群的聊天记录吗？此操作不可恢复。' : confirmState.type === 'kick' ? `确定将 ${confirmState.member?.nickname} 移出群聊吗？` : '退出后你将不再接收该群的任何消息，确定退出吗？'"
+      :message="confirmState.type === 'clear' ? '确定删除与该群的聊天记录吗？仅清除你本地可见的记录，对方不受影响。' : confirmState.type === 'kick' ? `确定将 ${confirmState.member?.nickname} 移出群聊吗？` : '退出后你将不再接收该群的任何消息，确定退出吗？'"
       :confirm-text="confirmState.type === 'clear' ? '删除' : confirmState.type === 'kick' ? '移出' : '退出'"
       danger
       @confirm="handleConfirm"

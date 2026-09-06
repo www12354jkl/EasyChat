@@ -21,7 +21,7 @@ function draw(): void {
   const { width, height } = canvas
 
   // 背景
-  ctx.fillStyle = '#f5f5f5'
+  ctx.fillStyle = '#ecfdf5'
   ctx.fillRect(0, 0, width, height)
 
   // 干扰线
@@ -69,7 +69,7 @@ onMounted(refresh)
     ref="canvasRef"
     width="110"
     height="40"
-    class="cursor-pointer rounded-md border border-gray-300"
+    class="cursor-pointer rounded-[var(--ec-radius)] border border-[var(--ec-border)]"
     title="点击刷新验证码"
     @click="refresh"
   />

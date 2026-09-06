@@ -1,11 +1,6 @@
 server:
     port: 8080
 
-easychat:
-    ws:
-        # Netty WebSocket 独立端口，与 chat HTTP 服务同机部署
-        uri: http://127.0.0.1:8083
-
 spring:
     application:
         name: easychat-gateway
@@ -42,9 +37,13 @@ spring:
                           predicates:
                               - Path=/api/chat/**
                         - id: easychat-ws
-                          uri: ${easychat.ws.uri}
+                          uri: no://op
                           predicates:
                               - Path=/ws,/ws/**
+                          filters:
+                              - name: WsLoadBalancer
+                                args:
+                                    serviceId: easychat-chat-service
                         - id: user-api-docs
                           uri: lb://easychat-user-service
                           predicates:

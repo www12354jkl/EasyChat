@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.faust.easychat.dto.user.AuthResponse;
 import com.faust.easychat.dto.user.ForgetPasswordRequest;
 import com.faust.easychat.dto.user.LoginRequest;
+import com.faust.easychat.dto.user.LogoutRequest;
 import com.faust.easychat.dto.user.RegisterRequest;
 import com.faust.easychat.result.Result;
 import com.faust.easychat.service.AuthService;
@@ -66,8 +67,10 @@ public class AuthController {
 
     @Operation(summary = "登出")
     @PostMapping("/logout")
-    public Result<Void> logout(@RequestHeader("Authorization") String authHeader) {
-        authService.logout(authHeader);
+    public Result<Void> logout(@RequestHeader("Authorization") String authHeader,
+            @RequestBody(required = false) LogoutRequest request) {
+        String refreshToken = request != null ? request.getRefreshToken() : null;
+        authService.logout(authHeader, refreshToken);
         return Result.success();
     }
 

@@ -26,4 +26,7 @@ public class ConversationMember {
 
     private LocalDateTime lastReadAt;
 
+    /** 该用户清空聊天记录的时间；查历史时只返回 created_at > cleared_at 的消息 */
+    private LocalDateTime clearedAt;
+
 }

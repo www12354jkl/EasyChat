@@ -38,7 +38,11 @@ export interface ChatMessage {
   content: string
   /** 1=文本 2=图片 3=文件 4=群邀请卡片 */
   contentType?: number
-  time: string
+  /** 1=正常 2=已撤回 */
+  status?: number
+  /** @deprecated 展示请用 createdAt + formatMessageTime */
+  time?: string
+  createdAt?: string
 }
 
 /** 群邀请卡片消息 content 字段 JSON 结构（contentType=4） */

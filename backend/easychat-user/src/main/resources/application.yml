@@ -16,6 +16,10 @@ spring:
             min-idle: 5
             max-active: 20
             max-wait: 60000
+    flyway:
+        enabled: true
+        baseline-on-migrate: true
+        locations: classpath:db/migration
     data:
         redis:
             host: ${REDIS_HOST:localhost}
@@ -72,7 +76,7 @@ jwt:
     secret: ${JWT_SECRET:change-me-in-production}
     access-expiration: 1800000
     refresh-expiration: 604800000
-    public-paths: /api/auth/login,/api/auth/register,/api/auth/token/refresh,/api/auth/send-verify-code,/api/auth/forget-password,/api/internal,/swagger-ui,/v3/api-docs
+    public-paths: /api/auth/login,/api/auth/register,/api/auth/token/refresh,/api/auth/send-verify-code,/api/auth/forget-password,/swagger-ui,/v3/api-docs
 
 springdoc:
     api-docs:
@@ -82,7 +86,6 @@ springdoc:
         persist-authorization: true
         disable-swagger-default-url: true
         try-it-out-enabled: true
-    paths-to-exclude: /api/internal/**
 
 tencent:
   cos:
@@ -92,9 +95,26 @@ tencent:
     bucket: ${TENCENT_COS_BUCKET:}
     url-prefix: ${TENCENT_COS_URL_PREFIX:}
 
+logging:
+    level:
+        org.flywaydb: INFO
+        org.springframework.boot.flyway: INFO
+
 ratelimit:
     enabled: true
 
-feign:
-    sentinel:
-        enabled: true
+dubbo:
+    application:
+        name: ${spring.application.name}
+        qos-enable: false
+        serialize-check-status: WARN
+    registry:
+        address: nacos://${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:}
+    protocol:
+        name: dubbo
+        port: -1
+    consumer:
+        check: false
+        timeout: 5000

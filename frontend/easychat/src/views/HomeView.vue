@@ -98,9 +98,9 @@ onUnmounted(() => {
 
 async function handleLogout() {
   try {
-    await logout()
+    await logout(auth.refreshToken ?? '')
   } catch {
-    // 后端拉黑失败不阻塞登出，本地会话照常清理
+    // 后端拉黑失败不阻塞登出
   } finally {
     auth.clearSession()
     toast.success('已退出登录')
@@ -113,20 +113,21 @@ async function toggleFriendVerify() {
   try {
     await updateFriendVerify({ friendVerify: friendVerify.value ? 1 : 0 })
   } catch (err) {
-    friendVerify.value = !friendVerify.value // 失败回滚
+    friendVerify.value = !friendVerify.value
     toast.error(err instanceof Error ? err.message : '设置保存失败')
   }
 }
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-white">
-    <!-- 左侧功能导航栏（PC 微信风格：深色窄栏） -->
-    <aside class="relative flex w-[60px] shrink-0 flex-col items-center bg-[#2E2E2E] py-3">
-      <!-- 顶部头像 → 个人资料 -->
+  <div class="flex h-full overflow-hidden bg-[var(--ec-bg)]">
+    <!-- 左侧导航：极简浅色栏 -->
+    <aside
+      class="relative flex w-[68px] shrink-0 flex-col items-center border-r border-[var(--ec-border)] bg-[var(--ec-bg)] py-4"
+    >
       <RouterLink
         to="/profile"
-        class="mb-6 flex h-10 w-10 items-center justify-center overflow-hidden rounded-[4px] transition-opacity duration-150 hover:opacity-80"
+        class="mb-5 flex h-10 w-10 items-center justify-center overflow-hidden rounded-full ring-2 ring-transparent transition-[ring-color,opacity] duration-200 hover:opacity-90 focus-visible:outline-none focus-visible:ring-[var(--ec-primary)]"
         title="个人信息"
       >
         <img
@@ -137,25 +138,21 @@ async function toggleFriendVerify() {
         />
         <span
           v-else
-          class="flex h-full w-full items-center justify-center text-sm font-medium text-white"
-          :style="{ backgroundColor: '#07C160' }"
+          class="flex h-full w-full items-center justify-center bg-[var(--ec-primary-soft)] text-sm font-medium text-[var(--ec-primary)]"
         >
           {{ auth.user?.nickname?.charAt(0) ?? '?' }}
         </span>
       </RouterLink>
 
-      <!-- 功能导航 -->
-      <nav class="flex w-full flex-1 flex-col items-center">
+      <nav class="flex w-full flex-1 flex-col items-center gap-1">
         <RouterLink
           to="/chat"
           class="nav-item"
           active-class="nav-item-active"
           title="聊天"
         >
-          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 3C6.5 3 2 6.9 2 11.7c0 2.6 1.3 5 3.5 6.6L4.6 21l3.3-1.7c1.3.4 2.7.6 4.1.6 5.5 0 10-3.9 10-8.7S17.5 3 12 3z"
-            />
+          <svg class="h-[22px] w-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
           </svg>
         </RouterLink>
 
@@ -165,22 +162,21 @@ async function toggleFriendVerify() {
           active-class="nav-item-active"
           title="通讯录"
         >
-          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5zm7-1.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm.5 1.7c1.7.5 5.5 2 5.5 4.8v1h-5v-1c0-1.9-.9-3.4-2.1-4.5.5-.2 1-.3 1.6-.3z"
-            />
+          <svg class="h-[22px] w-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
           </svg>
           <span
             v-if="contactsNotify.totalBadge > 0"
-            class="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FA5151] px-1 text-[10px] font-medium text-white"
+            class="absolute right-2 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--ec-danger)] px-1 text-[10px] font-medium text-white"
           >
             {{ contactsNotify.totalBadge > 99 ? '99+' : contactsNotify.totalBadge }}
           </span>
         </RouterLink>
-
       </nav>
 
-      <!-- 底部设置按钮 + 弹出菜单 -->
       <div class="relative w-full">
         <button
           type="button"
@@ -189,64 +185,48 @@ async function toggleFriendVerify() {
           :class="{ 'nav-item-active': menuOpen }"
           @click="menuOpen = !menuOpen"
         >
-          <svg
-            class="h-6 w-6"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
+          <svg class="h-[22px] w-[22px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3" />
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-            />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
         </button>
 
-        <!-- 点击外部关闭 -->
-        <div
-          v-if="menuOpen"
-          class="fixed inset-0 z-20"
-          @click="menuOpen = false"
-        ></div>
+        <div v-if="menuOpen" class="fixed inset-0 z-20" @click="menuOpen = false" />
 
-        <!-- 设置菜单 -->
         <div
           v-if="menuOpen"
-          class="absolute bottom-2 left-[64px] z-30 w-52 rounded-lg border border-[#E5E5E5] bg-white py-1 shadow-lg"
+          class="absolute bottom-2 left-[76px] z-30 w-52 overflow-hidden rounded-[var(--ec-radius)] border border-[var(--ec-border)] bg-[var(--ec-bg)] py-1 shadow-[0_8px_24px_rgba(26,46,36,0.08)]"
         >
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center px-4 py-2.5 text-sm text-[#1A1A1A] transition-colors duration-150 hover:bg-[#F5F5F5]"
+            class="flex w-full cursor-pointer items-center px-4 py-2.5 text-sm text-[var(--ec-text)] transition-colors duration-200 hover:bg-[var(--ec-bg-muted)]"
             @click="menuOpen = false; pwdModalOpen = true"
           >
             修改密码
           </button>
 
           <div class="flex items-center justify-between px-4 py-2.5">
-            <span class="text-sm text-[#1A1A1A]">加好友需验证</span>
+            <span class="text-sm text-[var(--ec-text)]">加好友需验证</span>
             <button
               type="button"
               class="relative h-6 w-10 cursor-pointer rounded-full transition-colors duration-200"
-              :class="friendVerify ? 'bg-[#07C160]' : 'bg-[#D6D6D6]'"
+              :class="friendVerify ? 'bg-[var(--ec-primary)]' : 'bg-[var(--ec-border)]'"
               role="switch"
               :aria-checked="friendVerify"
               @click="toggleFriendVerify"
             >
               <span
-                class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all duration-200"
+                class="absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all duration-200"
                 :class="friendVerify ? 'left-[18px]' : 'left-0.5'"
-              ></span>
+              />
             </button>
           </div>
 
-          <div class="my-1 border-t border-[#F0F0F0]"></div>
+          <div class="my-1 border-t border-[var(--ec-border)]" />
 
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center px-4 py-2.5 text-sm text-[#FA5151] transition-colors duration-150 hover:bg-[#F5F5F5]"
+            class="flex w-full cursor-pointer items-center px-4 py-2.5 text-sm text-[var(--ec-danger)] transition-colors duration-200 hover:bg-red-50"
             @click="menuOpen = false; handleLogout()"
           >
             退出登录
@@ -255,12 +235,10 @@ async function toggleFriendVerify() {
       </div>
     </aside>
 
-    <!-- 内容区 -->
-    <main class="min-w-0 flex-1 overflow-x-auto">
+    <main class="min-w-0 flex-1 overflow-x-auto bg-[var(--ec-bg-subtle)]">
       <RouterView />
     </main>
 
-    <!-- 修改密码弹窗 -->
     <ChangePasswordModal v-if="pwdModalOpen" @close="pwdModalOpen = false" />
   </div>
 </template>
@@ -268,18 +246,26 @@ async function toggleFriendVerify() {
 <style scoped>
 .nav-item {
   display: flex;
-  width: 100%;
-  padding: 14px 0;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto;
   align-items: center;
   justify-content: center;
-  color: #9a9a9a;
-  transition: color 0.15s ease;
+  border-radius: var(--ec-radius);
+  color: var(--ec-text-faint);
+  transition:
+    color var(--ec-transition),
+    background-color var(--ec-transition);
   cursor: pointer;
 }
+
 .nav-item:hover {
-  color: #ffffff;
+  color: var(--ec-text-muted);
+  background: var(--ec-bg-muted);
 }
+
 .nav-item-active {
-  color: #07c160;
+  color: var(--ec-primary);
+  background: var(--ec-primary-soft);
 }
 </style>

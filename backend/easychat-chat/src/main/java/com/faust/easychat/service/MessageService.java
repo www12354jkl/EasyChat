@@ -28,5 +28,7 @@ public interface MessageService {
 
     void markRead(String conversationId);
 
+    MessageDTO recallMessage(String messageId);
+
     void removeDirectConversation(String userId, String friendId);
 }

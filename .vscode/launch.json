@@ -1,0 +1,50 @@
+{
+    "configurations": [
+
+        {
+            "type": "java",
+            "name": "GatewayApplication",
+            "request": "launch",
+            "mainClass": "com.faust.easychat.GatewayApplication",
+            "projectName": "easychat-gateway"
+        },
+        {
+            "type": "java",
+            "name": "Chat-1 (8082/8083)",
+            "request": "launch",
+            "mainClass": "com.faust.easychat.ChatApplication",
+            "projectName": "easychat-chat",
+            "args": [
+                "--spring.profiles.active=local",
+                "--server.port=8082",
+                "--ws.port=8083",
+                "--easychat.ws.instance-id=chat-1"
+            ]
+        },
+        {
+            "type": "java",
+            "name": "Chat-2 (8084/8085)",
+            "request": "launch",
+            "mainClass": "com.faust.easychat.ChatApplication",
+            "projectName": "easychat-chat",
+            "args": [
+                "--spring.profiles.active=local",
+                "--server.port=8084",
+                "--ws.port=8085",
+                "--spring.cloud.sentinel.transport.port=8722",
+                "--easychat.ws.instance-id=chat-2"
+            ]
+        },
+        {
+            "type": "java",
+            "name": "User-1 (8081)",
+            "request": "launch",
+            "mainClass": "com.faust.easychat.UserApplication",
+            "projectName": "easychat-user",
+            "args": [
+                "--spring.profiles.active=local",
+                "--server.port=8081"
+            ]
+        }
+    ]
+}

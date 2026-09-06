@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { getConversations, type ConversationItem } from '@/api/chat'
 import type { Conversation, NewConversationEvent } from '@/types/chat'
+import { formatConversationTime } from '@/utils/messageTime'
+
+export { formatConversationTime as formatTime } from '@/utils/messageTime'
 
 /** 后端 ConversationResponse -> 前端 Conversation */
 export function mapConversationItem(c: ConversationItem): Conversation {
@@ -11,7 +14,7 @@ export function mapConversationItem(c: ConversationItem): Conversation {
     avatar: c.avatar ?? '',
     avatarColor: '#07C160',
     lastMessage: c.lastMessage ?? '',
-    lastTime: formatTime(c.lastMessageAt),
+    lastTime: formatConversationTime(c.lastMessageAt),
     unread: c.unread,
     type: c.type,
     isGroup: c.isGroup,
@@ -34,7 +37,7 @@ export function mapNewConversationEvent(c: NewConversationEvent): Conversation {
     avatar: c.avatar ?? '',
     avatarColor: '#07C160',
     lastMessage: c.lastMessage ?? '',
-    lastTime: formatTime(c.lastMessageAt),
+    lastTime: formatConversationTime(c.lastMessageAt),
     unread: c.unread ?? 0,
     type: c.type,
     isGroup: c.isGroup,
@@ -112,15 +115,3 @@ export const useChatStore = defineStore('chat', () => {
 
   return { conversations, loaded, fetchConversations, addConversation, removeConversation, setUnread, updateConversation, reset }
 })
-
-/** 后端 LocalDateTime -> 列表显示时间（今天显示 HH:mm，否则 MM-DD） */
-export function formatTime(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const now = new Date()
-  const sameDay = d.toDateString() === now.toDateString()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  if (sameDay) return `${pad(d.getHours())}:${pad(d.getMinutes())}`
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}

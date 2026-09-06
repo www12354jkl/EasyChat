@@ -2,9 +2,8 @@ package com.faust.easychat.filter;
 
 import java.io.IOException;
 
-import org.springframework.beans.factory.annotation.Value;
-
 import com.faust.easychat.context.UserContext;
+import com.faust.easychat.service.TokenBlacklistService;
 import com.faust.easychat.util.JwtUtil;
 
 import io.jsonwebtoken.Claims;
@@ -19,9 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 public class JwtAuthFilter implements Filter {
 
     private final JwtUtil jwtUtil;
-
-    @Value("${jwt.public-paths:/swagger-ui,/v3/api-docs}")
-    private String publicPaths;
+    private final TokenBlacklistService tokenBlacklistService;
+    private final String publicPaths;
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
@@ -44,6 +42,10 @@ public class JwtAuthFilter implements Filter {
         String token = authHeader.substring(7);
 
         try {
+            if (tokenBlacklistService.isBlacklisted(token)) {
+                writeError(resp, "token无效或已过期");
+                return;
+            }
             Claims claims = jwtUtil.parseToken(token);
             if (jwtUtil.isRefreshToken(claims)) {
                 writeError(resp, "无效token");
@@ -73,4 +75,3 @@ public class JwtAuthFilter implements Filter {
         response.getWriter().write("{\"code\":401,\"message\":\"" + msg + "\"}");
     }
 }
-

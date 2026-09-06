@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/auth'
+import { resolveApiUrl } from '@/config/env'
 
 export class ApiError extends Error {
   code?: number
@@ -28,7 +29,7 @@ async function doRefresh(): Promise<string> {
     throw new ApiError('未登录', 401)
   }
   // 后端 AuthController 是 @RequestBody String（JSON 字符串），需带引号序列化
-  const res = await fetch('/api/auth/token/refresh', {
+  const res = await fetch(resolveApiUrl('/api/auth/token/refresh'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(auth.refreshToken),
@@ -78,7 +79,7 @@ export async function request<T>(url: string, options: RequestOptions = {}): Pro
   }
 
   const doFetch = () =>
-    fetch(url, {
+    fetch(resolveApiUrl(url), {
       method: options.method ?? 'GET',
       headers,
       body: isForm ? body : body !== undefined ? JSON.stringify(body) : undefined,

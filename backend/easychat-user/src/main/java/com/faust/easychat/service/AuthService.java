@@ -15,7 +15,7 @@ public interface AuthService {
 
     void forgetPassword(ForgetPasswordRequest request);
 
-    void logout(String authHeader);
+    void logout(String authHeader, String refreshToken);
 
     String refreshAccessToken(String refreshToken);
 

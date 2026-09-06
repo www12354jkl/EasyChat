@@ -2,6 +2,14 @@
 import { computed, ref } from 'vue'
 import { forgetPassword } from '@/api/auth'
 import { useEmailCode } from '@/composables/useEmailCode'
+import AuthField from '@/components/auth/AuthField.vue'
+import {
+  authAlertErrorClass,
+  authGhostBtnClass,
+  authLabelClass,
+  authLinkClass,
+  authPrimaryBtnClass,
+} from './auth-ui'
 
 const emit = defineEmits<{
   switchToLogin: []
@@ -55,65 +63,62 @@ async function handleReset() {
 
 <template>
   <form class="space-y-4" @submit.prevent="handleReset">
-    <!-- 错误提示 -->
-    <div v-if="errorMsg" class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-500">
+    <div v-if="errorMsg" :class="authAlertErrorClass">
       {{ errorMsg }}
     </div>
 
-    <input
+    <AuthField
       v-model="email"
+      label="邮箱"
       type="email"
-      placeholder="邮箱"
+      placeholder="name@example.com"
       autocomplete="email"
-      class="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
     />
 
-    <!-- 邮箱验证码 -->
-    <div class="flex gap-2">
-      <input
-        v-model="emailCode"
-        type="text"
-        placeholder="邮箱验证码"
-        maxlength="6"
-        autocomplete="one-time-code"
-        class="w-full flex-1 rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
-      />
-      <button
-        type="button"
-        :disabled="countdown > 0 || sending"
-        @click="sendCode"
-        class="w-28 shrink-0 rounded-md border border-[#07C160] py-2.5 text-sm text-[#07C160] transition hover:bg-[#07C160]/5 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
-      >
-        {{ sendBtnText }}
-      </button>
+    <div>
+      <label :class="authLabelClass">邮箱验证码</label>
+      <div class="flex gap-2.5">
+        <input
+          v-model="emailCode"
+          type="text"
+          placeholder="6 位验证码"
+          maxlength="6"
+          autocomplete="one-time-code"
+          class="auth-input w-full flex-1"
+        />
+        <button
+          type="button"
+          :disabled="countdown > 0 || sending"
+          :class="[authGhostBtnClass, 'w-[7.5rem] shrink-0']"
+          @click="sendCode"
+        >
+          {{ sendBtnText }}
+        </button>
+      </div>
     </div>
 
-    <input
+    <AuthField
       v-model="newPassword"
+      label="新密码"
       type="password"
-      placeholder="新密码（8-20 位）"
+      placeholder="8-20 位"
       autocomplete="new-password"
-      class="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
-    />
-    <input
-      v-model="confirmPassword"
-      type="password"
-      placeholder="确认新密码"
-      autocomplete="new-password"
-      class="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
     />
 
-    <button
-      type="submit"
-      :disabled="loading"
-      class="w-full rounded-md bg-[#07C160] py-2.5 text-sm font-medium text-white transition hover:bg-[#06ad56] disabled:cursor-not-allowed disabled:opacity-60"
-    >
+    <AuthField
+      v-model="confirmPassword"
+      label="确认新密码"
+      type="password"
+      placeholder="再次输入密码"
+      autocomplete="new-password"
+    />
+
+    <button type="submit" :disabled="loading" :class="authPrimaryBtnClass">
       {{ loading ? '提交中…' : '重置密码' }}
     </button>
 
-    <!-- 底部链接 -->
-    <div class="pt-2 text-center text-xs text-gray-500">
-      <button type="button" class="hover:text-[#07C160]" @click="emit('switchToLogin')">
+    <div class="border-t border-[var(--ec-border)] pt-4 text-center">
+      <button type="button" :class="authLinkClass" @click="emit('switchToLogin')">
         返回登录
       </button>
     </div>

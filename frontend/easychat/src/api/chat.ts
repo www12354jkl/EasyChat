@@ -33,7 +33,7 @@ export interface GroupBrief {
   total: number
 }
 
-import type { ChatMessage, GroupDetail } from '@/types/chat'
+import type { GroupDetail } from '@/types/chat'
 
 export function createGroup(params: CreateGroupParams): Promise<GroupInfo> {
   return request<GroupInfo>('/api/chat/group', { method: 'POST', body: params })
@@ -77,7 +77,7 @@ export function kickGroupMember(groupId: string, userId: string): Promise<void> 
   return request<void>(`/api/chat/group/${groupId}/member/${userId}`, { method: 'DELETE' })
 }
 
-/** 清空会话聊天记录（后端 DELETE /api/chat/conversation/{id}/messages） */
+/** 清空会话聊天记录（仅自己可见，后端只更新 cleared_at） */
 export function clearConversationMessages(conversationId: string): Promise<void> {
   return request<void>(`/api/chat/conversation/${conversationId}/messages`, {
     method: 'DELETE',
@@ -93,8 +93,10 @@ export interface MessageRecord {
   senderId: string
   senderName?: string | null
   senderAvatar?: string | null
-  contentType?: number
+  contentType?: number | null
   content: string
+  /** 1=正常 2=已撤回 */
+  status?: number | null
   createdAt?: string | null
 }
 
@@ -126,8 +128,13 @@ export function sendMessage(params: {
   conversationId: string
   content: string
   contentType?: number
-}): Promise<ChatMessage> {
-  return request<ChatMessage>('/api/chat/message', { method: 'POST', body: params })
+}): Promise<MessageRecord> {
+  return request<MessageRecord>('/api/chat/message', { method: 'POST', body: params })
+}
+
+/** 撤回消息（后端 POST /api/chat/message/{id}/recall，2 分钟内且仅自己发送） */
+export function recallMessage(messageId: string): Promise<MessageRecord> {
+  return request<MessageRecord>(`/api/chat/message/${messageId}/recall`, { method: 'POST' })
 }
 
 /** 上传聊天图片/文件，返回 COS URL（后端 POST /api/chat/upload，multipart） */

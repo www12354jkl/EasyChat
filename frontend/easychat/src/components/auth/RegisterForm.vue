@@ -3,6 +3,14 @@ import { computed, ref } from 'vue'
 import { register } from '@/api/auth'
 import { useEmailCode } from '@/composables/useEmailCode'
 import Captcha from '@/components/Captcha.vue'
+import AuthField from '@/components/auth/AuthField.vue'
+import {
+  authAlertErrorClass,
+  authGhostBtnClass,
+  authLabelClass,
+  authLinkClass,
+  authPrimaryBtnClass,
+} from './auth-ui'
 
 const emit = defineEmits<{
   switchToLogin: []
@@ -72,85 +80,85 @@ async function handleRegister() {
 
 <template>
   <form class="space-y-4" @submit.prevent="handleRegister">
-    <!-- 错误提示 -->
-    <div v-if="errorMsg" class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-500">
+    <div v-if="errorMsg" :class="authAlertErrorClass">
       {{ errorMsg }}
     </div>
 
-    <input
+    <AuthField
       v-model="email"
+      label="邮箱"
       type="email"
-      placeholder="邮箱"
+      placeholder="name@example.com"
       autocomplete="email"
-      class="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
     />
 
-    <!-- 邮箱验证码 -->
-    <div class="flex gap-2">
-      <input
-        v-model="emailCode"
-        type="text"
-        placeholder="邮箱验证码"
-        maxlength="6"
-        autocomplete="one-time-code"
-        class="w-full flex-1 rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
-      />
-      <button
-        type="button"
-        :disabled="countdown > 0 || sending"
-        @click="sendCode"
-        class="w-28 shrink-0 rounded-md border border-[#07C160] py-2.5 text-sm text-[#07C160] transition hover:bg-[#07C160]/5 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
-      >
-        {{ sendBtnText }}
-      </button>
+    <div>
+      <label :class="authLabelClass">邮箱验证码</label>
+      <div class="flex gap-2.5">
+        <input
+          v-model="emailCode"
+          type="text"
+          placeholder="6 位验证码"
+          maxlength="6"
+          autocomplete="one-time-code"
+          class="auth-input w-full flex-1"
+        />
+        <button
+          type="button"
+          :disabled="countdown > 0 || sending"
+          :class="[authGhostBtnClass, 'w-[7.5rem] shrink-0']"
+          @click="sendCode"
+        >
+          {{ sendBtnText }}
+        </button>
+      </div>
     </div>
 
-    <input
+    <AuthField
       v-model="nickname"
+      label="昵称"
       type="text"
-      placeholder="昵称"
+      placeholder="你的显示名称"
       maxlength="20"
-      class="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
-    />
-    <input
-      v-model="password"
-      type="password"
-      placeholder="密码（8-20 位）"
-      autocomplete="new-password"
-      class="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
-    />
-    <input
-      v-model="confirmPassword"
-      type="password"
-      placeholder="确认密码"
-      autocomplete="new-password"
-      class="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
     />
 
-    <!-- 验证码 -->
-    <div class="flex gap-2">
-      <input
-        v-model="captchaInput"
-        type="text"
-        placeholder="验证码"
-        maxlength="4"
-        autocomplete="off"
-        class="w-full flex-1 rounded-md border border-gray-300 px-3 py-2.5 text-sm uppercase outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
-      />
-      <Captcha ref="captchaRef" class="h-10 shrink-0" />
+    <AuthField
+      v-model="password"
+      label="密码"
+      type="password"
+      placeholder="8-20 位"
+      autocomplete="new-password"
+    />
+
+    <AuthField
+      v-model="confirmPassword"
+      label="确认密码"
+      type="password"
+      placeholder="再次输入密码"
+      autocomplete="new-password"
+    />
+
+    <div>
+      <label :class="authLabelClass">图形验证码</label>
+      <div class="flex gap-2.5">
+        <input
+          v-model="captchaInput"
+          type="text"
+          placeholder="输入右侧字符"
+          maxlength="4"
+          autocomplete="off"
+          class="auth-input w-full flex-1 uppercase tracking-wider placeholder:normal-case placeholder:tracking-normal"
+        />
+        <Captcha ref="captchaRef" class="h-[42px] shrink-0 overflow-hidden rounded-[var(--ec-radius)]" />
+      </div>
     </div>
 
-    <button
-      type="submit"
-      :disabled="loading"
-      class="w-full rounded-md bg-[#07C160] py-2.5 text-sm font-medium text-white transition hover:bg-[#06ad56] disabled:cursor-not-allowed disabled:opacity-60"
-    >
+    <button type="submit" :disabled="loading" :class="authPrimaryBtnClass">
       {{ loading ? '注册中…' : '注册' }}
     </button>
 
-    <!-- 底部链接 -->
-    <div class="pt-2 text-center text-xs text-gray-500">
-      <button type="button" class="hover:text-[#07C160]" @click="emit('switchToLogin')">
+    <div class="border-t border-[var(--ec-border)] pt-4 text-center">
+      <button type="button" :class="authLinkClass" @click="emit('switchToLogin')">
         已有账号？去登录
       </button>
     </div>

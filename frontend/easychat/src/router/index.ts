@@ -1,4 +1,5 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router'
+import { IS_ELECTRON } from '@/config/env'
 import AuthView from '@/views/AuthView.vue'
 import HomeView from '@/views/HomeView.vue'
 import ProfileView from '@/views/ProfileView.vue'
@@ -7,9 +8,10 @@ import ChatView from '@/views/ChatView.vue'
 import GroupDetailView from '@/views/GroupDetailView.vue'
 import UserDetailView from '@/views/UserDetailView.vue'
 import { useAuthStore } from '@/stores/auth'
+import { syncElectronWindowMode } from '@/utils/electronWindow'
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: IS_ELECTRON ? createWebHashHistory() : createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/login',
@@ -61,6 +63,12 @@ router.beforeEach((to) => {
     return { name: 'chat' }
   }
   return true
+})
+
+router.afterEach((to) => {
+  if (!IS_ELECTRON) return
+  const isLogin = to.name === 'login'
+  syncElectronWindowMode(isLogin ? 'auth' : 'main')
 })
 
 export default router

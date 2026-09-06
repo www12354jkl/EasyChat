@@ -3,11 +3,15 @@ package com.faust.easychat.service.impl;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.faust.easychat.api.chat.ConversationDeleteService;
+import com.faust.easychat.api.chat.FriendRequestService;
+import com.faust.easychat.api.dubbo.DubboFallbacks;
 import com.faust.easychat.context.UserContext;
 import com.faust.easychat.dto.user.UserBriefDTO;
 import com.faust.easychat.dto.user.friend.AddFriendRequest;
@@ -20,14 +24,11 @@ import com.faust.easychat.entity.FriendRequest;
 import com.faust.easychat.entity.User;
 import com.faust.easychat.entity.UserSettings;
 import com.faust.easychat.exception.AppException;
-import com.faust.easychat.feign.ChatFeignClient;
 import com.faust.easychat.mapper.FriendMapper;
 import com.faust.easychat.mapper.FriendRequestMapper;
 import com.faust.easychat.mapper.UserMapper;
 import com.faust.easychat.mapper.UserSettingsMapper;
 import com.faust.easychat.service.FriendService;
-
-import com.faust.easychat.result.Result;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -44,7 +45,12 @@ public class FriendServiceImpl implements FriendService {
 
     private final FriendRequestMapper friendRequestMapper;
 
-    private final ChatFeignClient chatFeignClient;
+    @DubboReference(mock = DubboFallbacks.FRIEND_REQUEST, cluster = "failfast", retries = 0)
+    private FriendRequestService friendRequestService;
+
+    @DubboReference(mock = DubboFallbacks.CONVERSATION_DELETE, cluster = "failfast", retries = 0)
+    private ConversationDeleteService conversationDeleteService;
+
 
     @Override
     public List<UserBriefDTO> searchUser(String keyword) {
@@ -121,8 +127,9 @@ public class FriendServiceImpl implements FriendService {
         dto.setMessage(friendRequest.getMessage());
         dto.setStatus(friendRequest.getStatus());
         dto.setCreatedAt(friendRequest.getCreatedAt());
-        Result<Void> result = chatFeignClient.pushFriendRequest(friendRequest.getToUserId(), dto);
-        if (result == null || result.getCode() != 200) {
+        try {
+            friendRequestService.pushFriendRequest(friendRequest.getToUserId(), dto);
+        } catch (Exception e) {
             log.warn("好友申请 WS 推送失败: toUserId={}, requestId={}", friendRequest.getToUserId(),
                     friendRequest.getId());
         }
@@ -184,8 +191,9 @@ public class FriendServiceImpl implements FriendService {
         dto.setUserId(handler.getId());
         dto.setNickname(handler.getNickname());
         dto.setAvatar(handler.getAvatar());
-        Result<Void> result = chatFeignClient.pushFriendRequestHandled(friendRequest.getFromUserId(), dto);
-        if (result == null || result.getCode() != 200) {
+        try {
+            friendRequestService.pushFriendRequestHandled(friendRequest.getFromUserId(), dto);
+        } catch (Exception e) {
             log.warn("好友申请处理 WS 推送失败: fromUserId={}, requestId={}", friendRequest.getFromUserId(),
                     friendRequest.getId());
         }
@@ -214,8 +222,9 @@ public class FriendServiceImpl implements FriendService {
         friendMapper.deleteByUserIdAndFriendUserId(currentUserId, id);
         friendMapper.deleteByUserIdAndFriendUserId(id, currentUserId);
 
-        Result<Void> chatResult = chatFeignClient.removeDirectConversation(currentUserId, id);
-        if (chatResult == null || chatResult.getCode() != 200) {
+        try {
+            conversationDeleteService.removeDirectConversation(currentUserId, id);
+        } catch (Exception e) {
             log.warn("删好友后会话清理失败: userId={}, friendId={}", currentUserId, id);
         }
     }

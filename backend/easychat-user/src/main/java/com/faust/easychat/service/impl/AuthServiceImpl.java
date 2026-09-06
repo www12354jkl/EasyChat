@@ -20,6 +20,7 @@ import com.faust.easychat.entity.UserSettings;
 import com.faust.easychat.mapper.AuthMapper;
 import com.faust.easychat.mapper.UserSettingsMapper;
 import com.faust.easychat.service.AuthService;
+import com.faust.easychat.service.TokenBlacklistService;
 import com.faust.easychat.util.EmailUtil;
 import com.faust.easychat.util.JwtUtil;
 import com.faust.easychat.exception.AppException;
@@ -41,6 +42,8 @@ public class AuthServiceImpl implements AuthService {
     private final EmailUtil emailUtil;
 
     private final StringRedisTemplate redisTemplate;
+
+    private final TokenBlacklistService tokenBlacklistService;
 
     private final BCryptPasswordEncoder passwordEncoder;
 
@@ -142,21 +145,27 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void logout(String authHeader) {
-        String token = authHeader.substring(7);
+    public void logout(String authHeader, String refreshToken) {
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            blacklistToken(authHeader.substring(7));
+        }
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            blacklistToken(refreshToken);
+        }
+    }
+
+    private void blacklistToken(String token) {
         try {
             long remaining = jwtUtil.getTokenRemainingMs(token);
-            if (remaining > 0) {
-                redisTemplate.opsForValue().set("token:blacklist:" + token, "1", remaining, TimeUnit.MILLISECONDS);
-            }
+            tokenBlacklistService.blacklist(token, remaining);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("Failed to blacklist token", e);
         }
     }
 
     @Override
     public String refreshAccessToken(String refreshToken) {
-        if (Boolean.TRUE.equals(redisTemplate.hasKey("token:blacklist:" + refreshToken))) {
+        if (tokenBlacklistService.isBlacklisted(refreshToken)) {
             throw AppException.tokenInvalid();
         }
         try {

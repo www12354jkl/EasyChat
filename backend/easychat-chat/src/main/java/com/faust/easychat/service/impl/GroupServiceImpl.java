@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -37,8 +38,9 @@ import com.faust.easychat.entity.Conversation;
 import com.faust.easychat.entity.ConversationJoinRequest;
 import com.faust.easychat.entity.ConversationMember;
 import com.faust.easychat.entity.GroupInvite;
+import com.faust.easychat.api.dubbo.DubboFallbacks;
+import com.faust.easychat.api.user.UserQueryService;
 import com.faust.easychat.exception.AppException;
-import com.faust.easychat.feign.UserFeignClient;
 import com.faust.easychat.mapper.ConversationJoinRequestMapper;
 import com.faust.easychat.mapper.ConversationMapper;
 import com.faust.easychat.mapper.ConversationMemberMapper;
@@ -57,7 +59,8 @@ public class GroupServiceImpl implements GroupService {
 
     private final CosUtil cosUtil;
 
-    private final UserFeignClient userFeignClient;
+    @DubboReference(mock = DubboFallbacks.USER_QUERY, cluster = "failfast", retries = 0)
+    private UserQueryService userQueryService;
 
     private final ConversationMapper conversationMapper;
 
@@ -76,7 +79,7 @@ public class GroupServiceImpl implements GroupService {
     public GroupInfoDTO createGroup(CreateGroupRequest request) {
         // 创建者从登录态取，忽略前端传的 ownerId（防伪造群主）
         String ownerId = UserContext.get();
-        UserBriefDTO owner = userFeignClient.getUserById(ownerId).getData();
+        UserBriefDTO owner = userQueryService.getUserById(ownerId);
         if (owner == null) {
             throw AppException.userNotFound();
         }
@@ -88,7 +91,7 @@ public class GroupServiceImpl implements GroupService {
                 .toList();
 
         // 批量校验成员真实性：一次查询 + 数量比对（不存在的人不会出现在结果里）
-        List<UserBriefDTO> members = userFeignClient.batchGetUsers(String.join(",", memberIds)).getData();
+        List<UserBriefDTO> members = userQueryService.batchGetUsers(memberIds);
         if (members == null || members.size() != memberIds.size()) {
             throw AppException.userNotFound();
         }
@@ -242,7 +245,7 @@ public class GroupServiceImpl implements GroupService {
 
         // 批量拿用户信息，避免 N+1
         List<String> userIds = conversationMembers.stream().map(ConversationMember::getUserId).toList();
-        List<UserBriefDTO> userList = userFeignClient.batchGetUsers(String.join(",", userIds)).getData();
+        List<UserBriefDTO> userList = userQueryService.batchGetUsers(userIds);
         if (userList == null) {
             throw AppException.internalError("获取群成员信息失败");
         }
@@ -329,7 +332,7 @@ public class GroupServiceImpl implements GroupService {
             return;
         }
 
-        List<UserBriefDTO> users = userFeignClient.batchGetUsers(String.join(",", memberIds)).getData();
+        List<UserBriefDTO> users = userQueryService.batchGetUsers(memberIds);
         if (users == null || users.size() != memberIds.size()) {
             throw AppException.userNotFound();
         }
@@ -467,7 +470,7 @@ public class GroupServiceImpl implements GroupService {
         if (role == null || (role != 1 && role != 2)) {
             throw AppException.badRequest("角色只能是1或2");
         }
-        if (userFeignClient.getUserById(userId).getData() == null) {
+        if (userQueryService.getUserById(userId) == null) {
             throw AppException.userNotFound();
         }
         ConversationMember member = conversationMemberMapper.selectByConversationAndUser(groupId, userId);
@@ -488,7 +491,7 @@ public class GroupServiceImpl implements GroupService {
         String inviterId = UserContext.get();
         assertGroupAdmin(group, inviterId);
 
-        UserBriefDTO inviter = userFeignClient.getUserById(inviterId).getData();
+        UserBriefDTO inviter = userQueryService.getUserById(inviterId);
         if (inviter == null) {
             throw AppException.userNotFound();
         }
@@ -502,7 +505,7 @@ public class GroupServiceImpl implements GroupService {
             return;
         }
 
-        List<UserBriefDTO> users = userFeignClient.batchGetUsers(String.join(",", inviteeIds)).getData();
+        List<UserBriefDTO> users = userQueryService.batchGetUsers(inviteeIds);
         if (users == null || users.size() != inviteeIds.size()) {
             throw AppException.userNotFound();
         }
@@ -516,8 +519,7 @@ public class GroupServiceImpl implements GroupService {
             if (existingMembers.contains(inviteeId)) {
                 continue;
             }
-            Boolean isFriend = userFeignClient.isFriend(inviterId, inviteeId).getData();
-            if (isFriend == null || !isFriend) {
+            if (!userQueryService.isFriend(inviterId, inviteeId)) {
                 throw AppException.badRequest("只能邀请好友加入群聊");
             }
             if (groupInviteMapper.selectActiveByGroupAndInvitee(groupId, inviteeId) != null) {
@@ -831,7 +833,7 @@ public class GroupServiceImpl implements GroupService {
         if (message == null) {
             return;
         }
-        UserBriefDTO sender = userFeignClient.getUserById(message.getSenderId()).getData();
+        UserBriefDTO sender = userQueryService.getUserById(message.getSenderId());
         MessageDTO dto = new MessageDTO();
         dto.setId(message.getId());
         dto.setContent(message.getContent());
@@ -843,6 +845,7 @@ public class GroupServiceImpl implements GroupService {
             dto.setSenderName(sender.getNickname());
             dto.setSenderAvatar(sender.getAvatar());
         }
+        dto.setStatus(message.getStatus() == null ? 1 : message.getStatus());
         wsMessageSender.sendToUser(invite.getInviteeId(), "MESSAGE_UPDATE", dto);
         wsMessageSender.sendToUser(invite.getInviterId(), "MESSAGE_UPDATE", dto);
     }
@@ -863,7 +866,7 @@ public class GroupServiceImpl implements GroupService {
         if (userIds == null || userIds.isEmpty()) {
             return Map.of();
         }
-        List<UserBriefDTO> users = userFeignClient.batchGetUsers(String.join(",", userIds)).getData();
+        List<UserBriefDTO> users = userQueryService.batchGetUsers(userIds);
         if (users == null) {
             return Map.of();
         }

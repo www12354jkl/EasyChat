@@ -19,10 +19,13 @@ spring:
             min-idle: 5
             max-active: 20
             max-wait: 60000
+    flyway:
+        enabled: true
+        baseline-on-migrate: true
+        locations: classpath:db/migration
     sql:
         init:
-            mode: always
-            schema-locations: classpath:schema-group-invite.sql
+            mode: never
     data:
         redis:
             host: ${REDIS_HOST:localhost}
@@ -35,6 +38,8 @@ spring:
                 server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
                 username: ${NACOS_USERNAME:nacos}
                 password: ${NACOS_PASSWORD:}
+                metadata:
+                    ws-port: ${ws.port}
             config:
                 import-check:
                     enabled: false
@@ -68,6 +73,14 @@ spring:
                 smtp:
                     ssl:
                         enable: true
+    kafka:
+        bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+        consumer:
+            key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+            value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+            properties:
+                spring.json.trusted.packages: com.faust.easychat.dto.ws
+            auto-offset-reset: latest
 
 mybatis-plus:
     mapper-locations: classpath*:/mapper/**/*.xml
@@ -80,7 +93,7 @@ jwt:
     access-expiration: 1800000
     refresh-expiration: 604800000
     # chat 服务没有免鉴权接口（WebSocket 握手在拦截器里单独处理），保留 swagger 默认
-    public-paths: /api/internal,/swagger-ui,/v3/api-docs
+    public-paths: /swagger-ui,/v3/api-docs
 
 springdoc:
     api-docs:
@@ -90,7 +103,6 @@ springdoc:
         persist-authorization: true
         disable-swagger-default-url: true
         try-it-out-enabled: true
-    paths-to-exclude: /api/internal/**
 
 tencent:
   cos:
@@ -99,6 +111,34 @@ tencent:
     region: ${TENCENT_COS_REGION:ap-guangzhou}
     bucket: ${TENCENT_COS_BUCKET:}
     url-prefix: ${TENCENT_COS_URL_PREFIX:}
+
+easychat:
+  ws:
+    delivery: ${WS_DELIVERY:local}
+    instance-id: ${EASYCHAT_INSTANCE_ID:}
+  kafka:
+    ws-push-topic: easychat-ws-push
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+    qos-enable: false
+    serialize-check-status: WARN
+  registry:
+    address: nacos://${NACOS_SERVER_ADDR:localhost:8848}
+    username: ${NACOS_USERNAME:nacos}
+    password: ${NACOS_PASSWORD:}
+  protocol:
+    name: dubbo
+    port: -1
+  consumer:
+    check: false
+    timeout: 5000
+
+logging:
+    level:
+        org.flywaydb: INFO
+        org.springframework.boot.flyway: INFO
 
 ratelimit:
     enabled: true

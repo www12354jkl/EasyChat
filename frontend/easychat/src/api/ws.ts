@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/stores/auth'
+import { resolveApiUrl, resolveWsUrl } from '@/config/env'
 import type { ConversationUpdate, ConversationRemovedEvent, NewConversationEvent, OnlineStatusEvent, WsMessage, FriendRequestEvent, FriendRequestHandledEvent, GroupJoinRequestEvent, GroupJoinRequestHandledEvent } from '@/types/chat'
 
 /**
@@ -11,7 +12,6 @@ import type { ConversationUpdate, ConversationRemovedEvent, NewConversationEvent
 
 type Handler<T = unknown> = (payload: T) => void
 
-const WS_PATH = '/ws'
 const HEARTBEAT_INTERVAL = 25_000
 const RECONNECT_BASE = 1_000
 const RECONNECT_MAX = 30_000
@@ -49,8 +49,7 @@ class WsClient {
     const token = auth.accessToken
     if (!token) return
 
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    const url = `${proto}://${window.location.host}${WS_PATH}?token=${encodeURIComponent(token)}`
+    const url = resolveWsUrl(token)
     const ws = new WebSocket(url)
     this.ws = ws
 
@@ -125,7 +124,7 @@ export const ws = new WsClient()
 export async function fetchOnlineStatus(userIds: string[]): Promise<Record<string, boolean>> {
   if (!userIds.length) return {}
   try {
-    const res = await fetch(`/api/chat/online?userIds=${encodeURIComponent(userIds.join(','))}`, {
+    const res = await fetch(resolveApiUrl(`/api/chat/online?userIds=${encodeURIComponent(userIds.join(','))}`), {
       headers: { Authorization: `Bearer ${useAuthStore().accessToken}` },
     })
     const result = (await res.json().catch(() => null)) as { code?: number; data?: Record<string, boolean> } | null

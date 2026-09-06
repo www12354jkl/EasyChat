@@ -1,6 +1,7 @@
 package com.faust.easychat.service.impl;
 
 import com.faust.easychat.netty.WsMessageSender;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -8,6 +9,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -22,8 +24,9 @@ import com.faust.easychat.dto.user.UserBriefDTO;
 import com.faust.easychat.entity.Conversation;
 import com.faust.easychat.entity.ConversationMember;
 import com.faust.easychat.entity.Message;
+import com.faust.easychat.api.dubbo.DubboFallbacks;
+import com.faust.easychat.api.user.UserQueryService;
 import com.faust.easychat.exception.AppException;
-import com.faust.easychat.feign.UserFeignClient;
 import com.faust.easychat.mapper.ConversationMapper;
 import com.faust.easychat.mapper.ConversationMemberMapper;
 import com.faust.easychat.mapper.MessageMapper;
@@ -41,6 +44,11 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class MessageServiceImpl implements MessageService {
 
+    private static final int STATUS_NORMAL = 1;
+    private static final int STATUS_RECALLED = 2;
+    private static final Duration RECALL_WINDOW = Duration.ofMinutes(2);
+    private static final String RECALLED_SUMMARY = "[已撤回]";
+
     private final WsMessageSender wsMessageSender;
 
     private final ConversationMapper conversationMapper;
@@ -49,7 +57,8 @@ public class MessageServiceImpl implements MessageService {
 
     private final MessageMapper messageMapper;
 
-    private final UserFeignClient userFeignClient;
+    @DubboReference(mock = DubboFallbacks.USER_QUERY, cluster = "failfast", retries = 0)
+    private UserQueryService userQueryService;
 
     private final CosUtil cosUtil;
 
@@ -63,7 +72,7 @@ public class MessageServiceImpl implements MessageService {
         if (conversation.getType() != null && conversation.getType() == 3) {
             throw AppException.badRequest("该会话不支持发送消息");
         }
-        UserBriefDTO sender = userFeignClient.getUserById(UserContext.get()).getData();
+        UserBriefDTO sender = userQueryService.getUserById(UserContext.get());
         if (sender == null) {
             throw AppException.userNotFound();
         }
@@ -90,6 +99,7 @@ public class MessageServiceImpl implements MessageService {
         message.setContentType(contentType);
         message.setSenderId(sender.getUserId());
         message.setCreatedAt(now);
+        message.setStatus(STATUS_NORMAL);
         messageMapper.insert(message);
 
         String lastMessage = switch (contentType) {
@@ -110,6 +120,7 @@ public class MessageServiceImpl implements MessageService {
         dto.setSenderId(sender.getUserId());
         dto.setSenderName(sender.getNickname());
         dto.setSenderAvatar(sender.getAvatar());
+        dto.setStatus(STATUS_NORMAL);
 
         List<ConversationMember> members = conversationMemberMapper
                 .selectConversationAllMembers(request.getConversationId());
@@ -124,6 +135,46 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
+    @Transactional
+    public MessageDTO recallMessage(String messageId) {
+        String userId = UserContext.get();
+        Message message = messageMapper.selectById(messageId);
+        if (message == null) {
+            throw AppException.notFound("消息不存在");
+        }
+        if (!userId.equals(message.getSenderId())) {
+            throw AppException.forbidden("只能撤回自己发送的消息");
+        }
+        if (Integer.valueOf(STATUS_RECALLED).equals(message.getStatus())) {
+            throw AppException.badRequest("消息已撤回");
+        }
+        Integer contentType = message.getContentType();
+        if (contentType == null || contentType < 1 || contentType > 3) {
+            throw AppException.badRequest("该类型消息不支持撤回");
+        }
+        if (message.getCreatedAt().plus(RECALL_WINDOW).isBefore(LocalDateTime.now())) {
+            throw AppException.badRequest("超过2分钟，无法撤回");
+        }
+        if (conversationMemberMapper.selectByConversationAndUser(message.getConversationId(), userId) == null) {
+            throw AppException.forbidden("你不是该会话成员");
+        }
+
+        message.setStatus(STATUS_RECALLED);
+        messageMapper.updateById(message);
+        updateConversationLastMessageIfNeeded(message);
+
+        UserBriefDTO sender = userQueryService.getUserById(message.getSenderId());
+        MessageDTO dto = toMessageDto(message, sender);
+
+        List<ConversationMember> members = conversationMemberMapper
+                .selectConversationAllMembers(message.getConversationId());
+        for (ConversationMember member : members) {
+            wsMessageSender.sendToUser(member.getUserId(), "MESSAGE_UPDATE", dto);
+        }
+        return dto;
+    }
+
+    @Override
     public PageResult<MessageDTO> getChatHistory(String conversationId, String title, int page, int size) {
         ConversationMember me = conversationMemberMapper.selectByConversationAndUser(conversationId, UserContext.get());
         if (me == null) {
@@ -131,6 +182,7 @@ public class MessageServiceImpl implements MessageService {
         }
         LambdaQueryWrapper<Message> wrapper = new LambdaQueryWrapper<Message>()
                 .eq(Message::getConversationId, conversationId)
+                .gt(me.getClearedAt() != null, Message::getCreatedAt, me.getClearedAt())
                 .like(StringUtils.hasText(title), Message::getContent, title)
                 .orderByDesc(Message::getCreatedAt);
         Page<Message> mpPage = new Page<>(page, size);
@@ -141,19 +193,9 @@ public class MessageServiceImpl implements MessageService {
         List<String> senderIds = records.stream().map(Message::getSenderId).distinct().toList();
         Map<String, UserBriefDTO> userMap = fetchUserMap(senderIds);
 
-        List<MessageDTO> dtos = records.stream().map(m -> {
-            MessageDTO dto = new MessageDTO();
-            dto.setId(m.getId());
-            dto.setConversationId(m.getConversationId());
-            dto.setSenderId(m.getSenderId());
-            UserBriefDTO sender = userMap.get(m.getSenderId());
-            dto.setSenderName(sender != null ? sender.getNickname() : null);
-            dto.setSenderAvatar(sender != null ? sender.getAvatar() : null);
-            dto.setContentType(m.getContentType());
-            dto.setContent(m.getContent());
-            dto.setCreatedAt(m.getCreatedAt());
-            return dto;
-        }).toList();
+        List<MessageDTO> dtos = records.stream()
+                .map(m -> toMessageDto(m, userMap.get(m.getSenderId())))
+                .toList();
         return PageResult.of(dtos, result.getTotal(), page, size);
     }
 
@@ -182,19 +224,25 @@ public class MessageServiceImpl implements MessageService {
                         m -> ((Number) m.get("unread")).intValue(),
                         (x, y) -> x));
 
+        Map<String, LocalDateTime> clearedMap = members.stream()
+                .filter(m -> userId.equals(m.getUserId()) && m.getClearedAt() != null)
+                .collect(Collectors.toMap(ConversationMember::getConversationId, ConversationMember::getClearedAt,
+                        (x, y) -> x));
+
         // 单聊对方实时昵称/头像
         List<String> friendIds = friendMap.values().stream().distinct().toList();
         Map<String, UserBriefDTO> userMap = fetchUserMap(friendIds);
 
         return conversations.stream()
-                .map(c -> buildConversationResponse(c, userId, friendMap, userMap, totalMap, unreadMap))
+                .map(c -> buildConversationResponse(c, userId, friendMap, userMap, totalMap, unreadMap, clearedMap))
                 .filter(Objects::nonNull)
                 .toList();
     }
 
     private ConversationResponse buildConversationResponse(Conversation c, String userId,
             Map<String, String> friendMap, Map<String, UserBriefDTO> userMap,
-            Map<String, Integer> totalMap, Map<String, Integer> unreadMap) {
+            Map<String, Integer> totalMap, Map<String, Integer> unreadMap,
+            Map<String, LocalDateTime> clearedMap) {
         if (c.getType() != null && c.getType() == 3) {
             return null;
         }
@@ -214,19 +262,25 @@ public class MessageServiceImpl implements MessageService {
             r.setName(c.getName());
             r.setAvatar(c.getAvatar());
         }
-        r.setLastMessage(c.getLastMessage());
-        r.setLastMessageAt(c.getLastMessageAt());
+        LocalDateTime clearedAt = clearedMap.get(c.getId());
+        if (clearedAt != null && (c.getLastMessageAt() == null || !c.getLastMessageAt().isAfter(clearedAt))) {
+            r.setLastMessage(null);
+            r.setLastMessageAt(null);
+        } else {
+            r.setLastMessage(c.getLastMessage());
+            r.setLastMessageAt(c.getLastMessageAt());
+        }
         r.setUnread(unreadMap.getOrDefault(c.getId(), 0));
         r.setTotal(totalMap.getOrDefault(c.getId(), 0));
         return r;
     }
 
-    /** 批量查用户信息（判空防 Feign fallback），key=userId */
+    /** 批量查用户信息，key=userId */
     private Map<String, UserBriefDTO> fetchUserMap(List<String> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return Map.of();
         }
-        List<UserBriefDTO> users = userFeignClient.batchGetUsers(String.join(",", userIds)).getData();
+        List<UserBriefDTO> users = userQueryService.batchGetUsers(userIds);
         if (users == null) {
             return Map.of();
         }
@@ -242,8 +296,7 @@ public class MessageServiceImpl implements MessageService {
         if (friendId == null || friendId.isBlank() || friendId.equals(currentUserId)) {
             throw AppException.badRequest("对象不能为空或是自己");
         }
-        Boolean isFriend = userFeignClient.isFriend(currentUserId, friendId).getData();
-        if (isFriend == null || !isFriend) {
+        if (!userQueryService.isFriend(currentUserId, friendId)) {
             throw AppException.badRequest("只能和好友创建会话");
         }
         String conversationId = currentUserId.compareTo(friendId) < 0
@@ -262,7 +315,7 @@ public class MessageServiceImpl implements MessageService {
             // 双向插成员：发消息/查历史都依赖 member 校验，缺了会报"你不是该会话成员"
             conversationMemberMapper.batchInsert(conversationId, List.of(currentUserId, friendId), 1, now);
         }
-        UserBriefDTO friendUser = userFeignClient.getUserById(friendId).getData();
+        UserBriefDTO friendUser = userQueryService.getUserById(friendId);
         return buildSingleConversationResponse(conversation, friendUser);
     }
 
@@ -310,14 +363,11 @@ public class MessageServiceImpl implements MessageService {
         if (conversationMemberMapper.selectByConversationAndUser(conversationId, currentUserId) == null) {
             throw AppException.forbidden("你不是该会话成员");
         }
-        int deleted = messageMapper.deleteByConversationId(conversationId);
-
-        conversation.setLastMessage(null);
-        conversation.setLastMessageAt(null);
-        conversation.setUpdatedAt(LocalDateTime.now());
-        conversationMapper.updateById(conversation);
-
-        return Integer.valueOf(deleted);
+        // 只改当前用户的可见窗口，不删 message 表，对方记录不受影响
+        LocalDateTime now = LocalDateTime.now();
+        conversationMemberMapper.markCleared(conversationId, currentUserId, now);
+        conversationMemberMapper.markRead(conversationId, currentUserId, now);
+        return 0;
     }
 
     @Override
@@ -353,5 +403,36 @@ public class MessageServiceImpl implements MessageService {
         Map<String, String> payload = Map.of("id", conversationId);
         wsMessageSender.sendToUser(userId, "CONVERSATION_REMOVED", payload);
         wsMessageSender.sendToUser(friendId, "CONVERSATION_REMOVED", payload);
+    }
+
+    private void updateConversationLastMessageIfNeeded(Message message) {
+        long newerCount = messageMapper.selectCount(new LambdaQueryWrapper<Message>()
+                .eq(Message::getConversationId, message.getConversationId())
+                .gt(Message::getCreatedAt, message.getCreatedAt()));
+        if (newerCount > 0) {
+            return;
+        }
+        Conversation conversation = conversationMapper.selectById(message.getConversationId());
+        if (conversation == null) {
+            return;
+        }
+        conversation.setLastMessage(RECALLED_SUMMARY);
+        conversationMapper.updateById(conversation);
+    }
+
+    private static MessageDTO toMessageDto(Message message, UserBriefDTO sender) {
+        MessageDTO dto = new MessageDTO();
+        dto.setId(message.getId());
+        dto.setConversationId(message.getConversationId());
+        dto.setSenderId(message.getSenderId());
+        if (sender != null) {
+            dto.setSenderName(sender.getNickname());
+            dto.setSenderAvatar(sender.getAvatar());
+        }
+        dto.setContentType(message.getContentType());
+        dto.setContent(message.getContent());
+        dto.setCreatedAt(message.getCreatedAt());
+        dto.setStatus(message.getStatus() == null ? STATUS_NORMAL : message.getStatus());
+        return dto;
     }
 }

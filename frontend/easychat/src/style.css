@@ -1,1 +1,318 @@
 @import "tailwindcss";
+
+:root {
+  --ec-primary: #07c160;
+  --ec-primary-hover: #06ad56;
+  --ec-primary-soft: #ecfdf5;
+  --ec-primary-muted: #d1fae5;
+  --ec-primary-ring: rgba(7, 193, 96, 0.18);
+  --ec-bg: #ffffff;
+  --ec-bg-subtle: #f8faf9;
+  --ec-bg-muted: #f1f5f3;
+  --ec-border: #e5ebe8;
+  --ec-text: #1a2e24;
+  --ec-text-muted: #5f7369;
+  --ec-text-faint: #94a89e;
+  --ec-danger: #ef4444;
+  --ec-radius: 10px;
+  --ec-transition: 200ms ease;
+  --ec-scrollbar-size: 4px;
+  --ec-scrollbar-thumb: #cdd8d2;
+  --ec-scrollbar-thumb-hover: #9eb5a8;
+  --ec-scrollbar-track: transparent;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  color: var(--ec-text);
+  background: var(--ec-bg);
+  font-family:
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 全局滚动条：细窄圆角、无上下箭头 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ec-scrollbar-thumb) var(--ec-scrollbar-track);
+}
+
+*::-webkit-scrollbar {
+  width: var(--ec-scrollbar-size);
+  height: var(--ec-scrollbar-size);
+}
+
+*::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button:single-button,
+*::-webkit-scrollbar-button:start:decrement,
+*::-webkit-scrollbar-button:end:increment {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--ec-scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  background-color: var(--ec-scrollbar-thumb);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ec-scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.ec-scroll {
+  scrollbar-gutter: stable;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* —— EasyChat 共享 UI 组件类 —— */
+.ec-page {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  background: var(--ec-bg-subtle);
+}
+
+.ec-page-header {
+  display: flex;
+  height: 52px;
+  flex-shrink: 0;
+  align-items: center;
+  border-bottom: 1px solid var(--ec-border);
+  background: var(--ec-bg);
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.ec-page-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ec-text);
+}
+
+.ec-card {
+  border-radius: 1rem;
+  border: 1px solid var(--ec-border);
+  background: var(--ec-bg);
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(26, 46, 36, 0.04);
+}
+
+.ec-input {
+  width: 100%;
+  border-radius: var(--ec-radius);
+  border: 1px solid var(--ec-border);
+  background: var(--ec-bg);
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  color: var(--ec-text);
+  outline: none;
+  transition:
+    border-color var(--ec-transition),
+    box-shadow var(--ec-transition);
+}
+
+.ec-input::placeholder {
+  color: var(--ec-text-faint);
+}
+
+.ec-input:focus {
+  border-color: var(--ec-primary);
+  box-shadow: 0 0 0 3px var(--ec-primary-ring);
+}
+
+.ec-btn-primary {
+  cursor: pointer;
+  border-radius: var(--ec-radius);
+  background: var(--ec-primary);
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #fff;
+  transition: background-color var(--ec-transition);
+}
+
+.ec-btn-primary:hover {
+  background: var(--ec-primary-hover);
+}
+
+.ec-btn-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ec-btn-outline {
+  cursor: pointer;
+  border-radius: var(--ec-radius);
+  border: 1px solid var(--ec-primary);
+  background: transparent;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--ec-primary);
+  transition:
+    background-color var(--ec-transition),
+    border-color var(--ec-transition);
+}
+
+.ec-btn-outline:hover {
+  background: var(--ec-primary-soft);
+}
+
+.ec-btn-secondary {
+  cursor: pointer;
+  border-radius: var(--ec-radius);
+  border: 1px solid var(--ec-border);
+  background: var(--ec-bg);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: var(--ec-text-muted);
+  transition:
+    background-color var(--ec-transition),
+    border-color var(--ec-transition);
+}
+
+.ec-btn-secondary:hover {
+  background: var(--ec-bg-muted);
+}
+
+.ec-btn-ghost {
+  cursor: pointer;
+  border-radius: var(--ec-radius);
+  border: 1px solid var(--ec-border);
+  background: var(--ec-bg);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--ec-text-muted);
+  transition:
+    border-color var(--ec-transition),
+    background-color var(--ec-transition);
+}
+
+.ec-btn-ghost:hover {
+  border-color: var(--ec-primary);
+  color: var(--ec-primary);
+  background: var(--ec-primary-soft);
+}
+
+.ec-icon-btn {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ec-radius);
+  color: var(--ec-text-muted);
+  transition:
+    background-color var(--ec-transition),
+    color var(--ec-transition);
+}
+
+.ec-icon-btn:hover {
+  background: var(--ec-bg-muted);
+  color: var(--ec-text);
+}
+
+.ec-list-row {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: var(--ec-radius);
+  padding: 0.375rem 0.5rem;
+  transition: background-color var(--ec-transition);
+}
+
+.ec-list-row:hover {
+  background: var(--ec-bg-muted);
+}
+
+.ec-sidebar-item {
+  display: flex;
+  width: 100%;
+  cursor: pointer;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  text-align: left;
+  transition: background-color var(--ec-transition);
+}
+
+.ec-sidebar-item:hover {
+  background: var(--ec-bg-muted);
+}
+
+.ec-sidebar-item-active {
+  background: var(--ec-primary-soft);
+}
+
+.ec-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26, 46, 36, 0.35);
+  padding: 1rem;
+}
+
+.ec-modal-panel {
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid var(--ec-border);
+  background: var(--ec-bg);
+  box-shadow: 0 16px 48px rgba(26, 46, 36, 0.12);
+}
+
+.ec-search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: var(--ec-radius);
+  border: 1px solid var(--ec-border);
+  background: var(--ec-bg-subtle);
+  padding: 0.375rem 0.75rem;
+  transition:
+    border-color var(--ec-transition),
+    box-shadow var(--ec-transition);
+}
+
+.ec-search-box:focus-within {
+  border-color: var(--ec-primary);
+  box-shadow: 0 0 0 3px var(--ec-primary-ring);
+}
+
+.ec-danger-text {
+  color: var(--ec-danger);
+}
+
+.ec-danger-text:hover {
+  background: #fef2f2;
+}
+

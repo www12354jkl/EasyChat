@@ -1,0 +1,1606 @@
+openapi: 3.0.3
+info:
+  title: EasyChat API
+  description: |
+    EasyChat 即时通讯项目 API 文档，用于 Apifox / Postman / Insomnia 等工具导入测试。
+
+    ## 使用说明
+
+    ### 服务地址
+    - **Gateway（推荐）**: `http://localhost:8080`
+
+    ### 鉴权方式
+    先调用 `POST /api/auth/login` 获取 `accessToken`，在 Header 中携带：
+    `Authorization: Bearer <accessToken>`
+
+    ### 响应格式
+    统一包装为 `{ "code": 200, "message": "...", "data": ... }`，`code !== 200` 表示业务失败。
+    注意：JWT 过滤器部分场景 HTTP 状态码仍为 200，需看 body 中的 `code` 字段。
+
+    ### 建议环境变量（Apifox 环境）
+    - `baseUrl` = `http://localhost:8080`
+    - `userBaseUrl` = `http://localhost:8081`
+    - `chatBaseUrl` = `http://localhost:8082`
+    - `accessToken` = 登录后填入
+    - `refreshToken` = 登录后填入
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Gateway
+
+tags:
+  - name: 认证
+    description: 登录、注册、验证码、Token 刷新/登出
+  - name: 用户
+    description: 个人资料、头像、密码、设置
+  - name: 好友
+    description: 搜索、好友申请、好友列表
+  - name: 消息
+    description: 发消息、会话、历史、在线状态
+  - name: 群聊
+    description: 建群、成员、邀请、入群申请
+
+paths:
+  # ==================== 认证 ====================
+  /api/auth/login:
+    post:
+      tags: [认证]
+      summary: 登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: user@example.com
+              password: password123
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+
+  /api/auth/register:
+    post:
+      tags: [认证]
+      summary: 注册
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+
+  /api/auth/forget-password:
+    put:
+      tags: [认证]
+      summary: 忘记密码
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgetPasswordRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/auth/send-verify-code:
+    post:
+      tags: [认证]
+      summary: 发送邮箱验证码
+      security: []
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+        - name: type
+          in: query
+          required: true
+          description: register=注册，forgot=找回密码
+          schema:
+            type: string
+            enum: [register, forgot]
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/auth/logout:
+    post:
+      tags: [认证]
+      summary: 登出（拉黑 accessToken 与 refreshToken）
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/auth/token/refresh:
+    post:
+      tags: [认证]
+      summary: 刷新 accessToken
+      description: 请求体为 JSON 字符串（带引号），不是对象
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: string
+            example: eyJhbGciOiJIUzI1NiJ9.example.refresh.token
+      responses:
+        '200':
+          description: 成功，data 为新 accessToken 字符串
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: string
+
+  # ==================== 用户 ====================
+  /api/user/profile:
+    get:
+      tags: [用户]
+      summary: 获取当前用户资料
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ProfileDTO'
+    put:
+      tags: [用户]
+      summary: 更新当前用户资料
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/user/avatar:
+    put:
+      tags: [用户]
+      summary: 上传头像
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 成功，data 为头像 URL
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: string
+
+  /api/user/send-reset-code:
+    post:
+      tags: [用户]
+      summary: 发送重置密码验证码
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/user/password:
+    put:
+      tags: [用户]
+      summary: 重置密码（已登录）
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/user/friend-verify:
+    put:
+      tags: [用户]
+      summary: 修改加好友验证开关
+      description: friendVerify：1=需要验证，0=允许任何人
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/user/settings:
+    get:
+      tags: [用户]
+      summary: 获取当前用户设置
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SettingsRequest'
+
+  /api/user/{userId}:
+    get:
+      tags: [用户]
+      summary: 按 id 查看用户公开信息
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserInfoDTO'
+
+  # ==================== 好友 ====================
+  /api/user/search:
+    get:
+      tags: [好友]
+      summary: 搜索用户
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: keyword
+          in: query
+          required: true
+          description: 昵称或邮箱关键字
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/UserBriefDTO'
+
+  /api/user/friend/request:
+    post:
+      tags: [好友]
+      summary: 发送好友申请
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddFriendRequest'
+      responses:
+        '200':
+          description: 成功，data.status 为 pending 或 accepted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+
+  /api/user/friend/requests:
+    get:
+      tags: [好友]
+      summary: 我收到的好友申请
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FriendRequestDTO'
+
+  /api/user/friend/request/{id}:
+    put:
+      tags: [好友]
+      summary: 处理好友申请
+      description: status：1=同意，2=拒绝
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 申请 id
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandleRequestReq'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/user/friends:
+    get:
+      tags: [好友]
+      summary: 好友列表
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FriendDTO'
+
+  /api/user/friend/{id}:
+    delete:
+      tags: [好友]
+      summary: 删除好友
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 好友用户 id
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  # ==================== 消息 ====================
+  /api/chat/message:
+    post:
+      tags: [消息]
+      summary: 发送消息
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+            example:
+              conversationId: "1"
+              content: 你好
+              contentType: 1
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageDTO'
+
+  /api/chat/message/{messageId}/recall:
+    post:
+      tags: [消息]
+      summary: 撤回消息
+      description: 仅发送者可在发送后 2 分钟内撤回文本/图片/文件消息（contentType 1-3）
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageDTO'
+
+  /api/chat/messages:
+    get:
+      tags: [消息]
+      summary: 会话消息历史
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: title
+          in: query
+          required: false
+          description: 按标题筛选
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/PageResultMessage'
+
+  /api/chat/conversations:
+    get:
+      tags: [消息]
+      summary: 我的会话列表
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ConversationResponse'
+
+  /api/chat/conversation/direct:
+    post:
+      tags: [消息]
+      summary: 创建/获取单聊会话
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SingleConversationRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ConversationResponse'
+
+  /api/chat/online:
+    get:
+      tags: [消息]
+      summary: 批量查询在线状态
+      description: userIds 逗号分隔
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: userIds
+          in: query
+          required: true
+          example: "1,2,3"
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功，data 为 userId -> online 映射
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        additionalProperties:
+                          type: boolean
+
+  /api/chat/upload:
+    post:
+      tags: [消息]
+      summary: 上传聊天文件
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 成功，data 为文件 URL
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: string
+
+  /api/chat/conversation/{conversationId}/messages:
+    delete:
+      tags: [消息]
+      summary: 清空会话消息（仅自己可见）
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/conversationId'
+      responses:
+        '200':
+          description: 成功，data 为删除条数
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: integer
+
+  /api/chat/conversation/{conversationId}/read:
+    put:
+      tags: [消息]
+      summary: 标记会话已读
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/conversationId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  # ==================== 群聊 ====================
+  /api/chat/group:
+    post:
+      tags: [群聊]
+      summary: 创建群聊
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GroupInfoDTO'
+
+  /api/chat/group/avatar:
+    put:
+      tags: [群聊]
+      summary: 上传群头像
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [id, file]
+              properties:
+                id:
+                  type: string
+                  description: 群会话 id
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: string
+
+  /api/chat/group/my:
+    get:
+      tags: [群聊]
+      summary: 我创建的群
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/GroupBriefDTO'
+
+  /api/chat/group/all-join:
+    get:
+      tags: [群聊]
+      summary: 我加入的群
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/GroupBriefDTO'
+
+  /api/chat/group/{id}:
+    get:
+      tags: [群聊]
+      summary: 群详情
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 群会话 id
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/GroupDTO'
+    put:
+      tags: [群聊]
+      summary: 更新群资料
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGroupRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+    delete:
+      tags: [群聊]
+      summary: 退出群聊
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 群会话 id
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/chat/group/{id}/members:
+    post:
+      tags: [群聊]
+      summary: 直接拉人进群
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddGroupMembersRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/chat/group/{groupId}/member/{userId}:
+    delete:
+      tags: [群聊]
+      summary: 踢出群成员
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/chat/group/{groupId}/member/{userId}/role:
+    put:
+      tags: [群聊]
+      summary: 修改成员角色
+      description: role：1=普通成员，2=管理员
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditMemberRoleRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/chat/group/{groupId}/invite:
+    post:
+      tags: [群聊]
+      summary: 邀请入群
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddGroupMembersRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/chat/group/invite/{inviteId}/accept:
+    post:
+      tags: [群聊]
+      summary: 接受群邀请
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inviteId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptGroupInviteRequest'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AcceptGroupInviteResponse'
+
+  /api/chat/group/invite/{inviteId}:
+    delete:
+      tags: [群聊]
+      summary: 拒绝群邀请
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inviteId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+  /api/chat/group/join-requests:
+    get:
+      tags: [群聊]
+      summary: 入群申请列表
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: conversationId
+          in: query
+          required: false
+          description: 群会话 id，不传则返回当前用户可见的全部申请
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Result'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/GroupJoinRequestDTO'
+
+  /api/chat/group/join-request/{id}:
+    put:
+      tags: [群聊]
+      summary: 处理入群申请
+      description: status：1=同意，2=拒绝
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HandleJoinRequestBody'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultVoid'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 登录后获取的 accessToken
+
+  parameters:
+    userId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+    conversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema:
+        type: string
+
+  schemas:
+    Result:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: success
+        data:
+          nullable: true
+
+    ResultVoid:
+      allOf:
+        - $ref: '#/components/schemas/Result'
+        - type: object
+          properties:
+            data:
+              nullable: true
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    RegisterRequest:
+      type: object
+      required: [email, nickname, password, code]
+      properties:
+        email:
+          type: string
+          format: email
+        nickname:
+          type: string
+          maxLength: 20
+        password:
+          type: string
+          minLength: 8
+          maxLength: 20
+        code:
+          type: string
+          description: 邮箱验证码
+
+    ForgetPasswordRequest:
+      type: object
+      required: [email, code, newPassword]
+      properties:
+        email:
+          type: string
+        code:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+          maxLength: 32
+
+    LogoutRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        userInfo:
+          $ref: '#/components/schemas/UserInfo'
+
+    UserInfo:
+      type: object
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+        nickname:
+          type: string
+        avatar:
+          type: string
+
+    ProfileDTO:
+      type: object
+      properties:
+        userId:
+          type: string
+        email:
+          type: string
+        nickname:
+          type: string
+        avatar:
+          type: string
+        gender:
+          type: integer
+        region:
+          type: string
+        regionCode:
+          type: string
+        signature:
+          type: string
+
+    UserInfoDTO:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        avatar:
+          type: string
+        gender:
+          type: integer
+        region:
+          type: string
+        signature:
+          type: string
+
+    UserBriefDTO:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        avatar:
+          type: string
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        nickname:
+          type: string
+        avatar:
+          type: string
+        gender:
+          type: integer
+        region:
+          type: string
+        regionCode:
+          type: string
+        signature:
+          type: string
+
+    ResetPasswordRequest:
+      type: object
+      properties:
+        code:
+          type: string
+        newPassword:
+          type: string
+
+    SettingsRequest:
+      type: object
+      properties:
+        friendVerify:
+          type: integer
+          description: 1=需要验证，0=允许任何人
+
+    AddFriendRequest:
+      type: object
+      properties:
+        toUserId:
+          type: string
+        message:
+          type: string
+
+    HandleRequestReq:
+      type: object
+      properties:
+        status:
+          type: integer
+          description: 1=同意，2=拒绝
+
+    FriendRequestDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        fromUserId:
+          type: string
+        fromNickname:
+          type: string
+        fromAvatar:
+          type: string
+        message:
+          type: string
+        status:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    FriendRequestHandledDTO:
+      type: object
+      properties:
+        requestId:
+          type: string
+        fromUserId:
+          type: string
+        toUserId:
+          type: string
+        status:
+          type: integer
+        nickname:
+          type: string
+        avatar:
+          type: string
+
+    FriendDTO:
+      type: object
+      properties:
+        userId:
+          type: string
+        nickname:
+          type: string
+        avatar:
+          type: string
+        remark:
+          type: string
+
+    SendMessageRequest:
+      type: object
+      properties:
+        conversationId:
+          type: string
+        content:
+          type: string
+        contentType:
+          type: integer
+          description: 1=文本，2=图片，3=文件等
+
+    MessageDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        conversationId:
+          type: string
+        senderId:
+          type: string
+        senderName:
+          type: string
+        senderAvatar:
+          type: string
+        contentType:
+          type: integer
+        content:
+          type: string
+        status:
+          type: integer
+          description: 1=正常 2=已撤回
+        createdAt:
+          type: string
+          format: date-time
+
+    PageResultMessage:
+      type: object
+      properties:
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessageDTO'
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+          format: int64
+        size:
+          type: integer
+          format: int64
+
+    ConversationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        avatar:
+          type: string
+        type:
+          type: integer
+          description: 1单聊 2群聊 3群邀请
+        isGroup:
+          type: boolean
+        isGroupInvite:
+          type: boolean
+        friendId:
+          type: string
+        groupId:
+          type: string
+        inviteId:
+          type: string
+        joinVerify:
+          type: integer
+        inviterName:
+          type: string
+        inviterAvatar:
+          type: string
+        inviteStatus:
+          type: string
+          description: pending | waiting | joined | expired
+        lastMessage:
+          type: string
+        lastMessageAt:
+          type: string
+          format: date-time
+        unread:
+          type: integer
+        total:
+          type: integer
+
+    SingleConversationRequest:
+      type: object
+      properties:
+        friendId:
+          type: string
+
+    CreateGroupRequest:
+      type: object
+      required: [name, memberIds]
+      properties:
+        name:
+          type: string
+          maxLength: 64
+        avatar:
+          type: string
+        announcement:
+          type: string
+        joinVerify:
+          type: integer
+        memberIds:
+          type: array
+          items:
+            type: string
+
+    UpdateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        announcement:
+          type: string
+        joinVerify:
+          type: integer
+
+    AddGroupMembersRequest:
+      type: object
+      required: [memberIds]
+      properties:
+        memberIds:
+          type: array
+          items:
+            type: string
+
+    EditMemberRoleRequest:
+      type: object
+      properties:
+        role:
+          type: integer
+          description: 1=普通成员，2=管理员
+
+    GroupBriefDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        avatar:
+          type: string
+        memberCount:
+          type: integer
+
+    GroupInfoDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        avatar:
+          type: string
+        announcement:
+          type: string
+        joinVerify:
+          type: integer
+        ownerId:
+          type: string
+
+    GroupDTO:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        avatar:
+          type: string
+        announcement:
+          type: string
+        joinVerify:
+          type: integer
+        ownerId:
+          type: string
+        members:
+          type: array
+          items:
+            type: object
+
+    AcceptGroupInviteRequest:
+      type: object
+      properties:
+        message:
+          type: string
+
+    AcceptGroupInviteResponse:
+      type: object
+      properties:
+        conversationId:
+          type: string
+        status:
+          type: string
+
+    GroupJoinRequestDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        conversationId:
+          type: string
+        userId:
+          type: string
+        nickname:
+          type: string
+        avatar:
+          type: string
+        message:
+          type: string
+        status:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    HandleJoinRequestBody:
+      type: object
+      properties:
+        status:
+          type: integer
+          description: 1=同意，2=拒绝

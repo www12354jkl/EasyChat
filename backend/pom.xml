@@ -36,6 +36,7 @@
         <hutool.version>5.8.46</hutool.version>
         <rocketmq.version>2.3.0</rocketmq.version>
 		<spring-cloud-gateway.version>5.0.0</spring-cloud-gateway.version>
+		<dubbo.version>3.3.5</dubbo.version>
     </properties>
 
 	<dependencyManagement>
@@ -103,6 +104,16 @@
 				<groupId>io.jsonwebtoken</groupId>
 				<artifactId>jjwt</artifactId>
 				<version>${jjwt.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.dubbo</groupId>
+				<artifactId>dubbo-spring-boot-starter</artifactId>
+				<version>${dubbo.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.dubbo</groupId>
+				<artifactId>dubbo-registry-nacos</artifactId>
+				<version>${dubbo.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

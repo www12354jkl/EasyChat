@@ -22,9 +22,7 @@ import { formatTime, useChatStore } from '@/stores/chat'
 import { useContactsNotifyStore } from '@/stores/contactsNotify'
 import { useToastStore } from '@/stores/toast'
 import { ws } from '@/api/ws'
-import type {
-  FriendRequestEvent,
-} from '@/types/chat'
+import { ecAvatarStyle } from '@/utils/ec-ui'
 
 type Tab = 'newFriends' | 'myGroups' | 'joinedGroups' | 'friends'
 
@@ -223,7 +221,7 @@ async function handleRequestAction(req: FriendRequestItem, accept: boolean) {
 
 /** 头像：图片 URL 显示图片，否则首字色块 */
 function avatarStyle(avatar: string): Record<string, string> {
-  return { backgroundColor: avatar?.startsWith('#') ? avatar : '#07C160' }
+  return ecAvatarStyle(avatar)
 }
 
 function isImageAvatar(avatar: string): boolean {
@@ -253,18 +251,25 @@ function onJoinRequestsChanged() {
 <template>
   <div class="flex h-full min-w-[960px]">
     <!-- 左侧菜单栏 -->
-    <aside class="flex h-full w-[240px] shrink-0 flex-col border-r border-[#E5E5E5] bg-[#F7F7F7] xl:w-[280px]">
-      <!-- 菜单项 -->
-      <nav class="flex-1 overflow-y-auto pb-2">
+    <aside class="flex h-full w-[240px] shrink-0 flex-col border-r border-[var(--ec-border)] bg-[var(--ec-bg)] xl:w-[280px]">
+      <div class="border-b border-[var(--ec-border)] px-4 py-4">
+        <h2 class="text-base font-semibold text-[var(--ec-text)]">通讯录</h2>
+      </div>
+      <nav class="flex-1 overflow-y-auto py-2">
         <button
           v-for="item in tabItems"
           :key="item.key"
           type="button"
-          class="flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150"
-          :class="activeTab === item.key ? 'bg-[#D6D6D6]' : 'hover:bg-[#EBEBEB]'"
+          class="ec-sidebar-item relative mx-2 w-[calc(100%-1rem)] rounded-[var(--ec-radius)]"
+          :class="activeTab === item.key ? 'ec-sidebar-item-active' : ''"
           @click="activeTab = item.key"
         >
-          <span class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[4px] bg-white text-[#07C160]">
+          <span
+            v-if="activeTab === item.key"
+            class="absolute bottom-2 left-0 top-2 w-[3px] rounded-full bg-[var(--ec-primary)]"
+            aria-hidden="true"
+          />
+          <span class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--ec-radius)] bg-[var(--ec-primary-soft)] text-[var(--ec-primary)]">
             <!-- 新朋友 -->
             <svg v-if="item.key === 'newFriends'" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M15 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7.5 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm7.5 1c-2.7 0-8 1.3-8 4v2h16v-2c0-2.7-5.3-4-8-4zm-7.5-.5C5.3 13.5 3 15.4 3 17.5V19h4v-1.5c0-1 .3-1.8.9-2.5-.3-.1-.7-.2-1-.5z" />
@@ -279,39 +284,39 @@ function onJoinRequestsChanged() {
             </svg>
             <span
               v-if="item.badge"
-              class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FA5151] px-1 text-[10px] leading-none text-white"
+              class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--ec-danger)] px-1 text-[10px] leading-none text-white"
             >
               {{ item.badge }}
             </span>
           </span>
-          <span class="text-[15px] text-[#1A1A1A]">{{ item.label }}</span>
+          <span class="text-[15px] text-[var(--ec-text)]">{{ item.label }}</span>
         </button>
       </nav>
     </aside>
 
     <!-- 右侧内容区 -->
-    <main class="flex min-w-0 flex-1 flex-col bg-[#F5F5F5]">
-      <header class="flex h-[48px] shrink-0 items-center border-b border-[#E5E5E5] bg-white px-4">
-        <h1 class="text-base font-medium text-[#1A1A1A]">{{ tabTitle[activeTab] }}</h1>
+    <main class="flex min-w-0 flex-1 flex-col bg-[var(--ec-bg-subtle)]">
+      <header class="ec-page-header">
+        <h1 class="ec-page-title">{{ tabTitle[activeTab] }}</h1>
       </header>
 
       <div class="flex-1 overflow-y-auto p-6">
         <!-- ========== 新朋友 ========== -->
         <div v-if="activeTab === 'newFriends'" class="mx-auto max-w-[640px]">
           <!-- 搜索好友 -->
-          <div class="mb-6 rounded-lg bg-white p-4 shadow-sm">
-            <p class="mb-3 text-sm font-medium text-[#1A1A1A]">搜索好友</p>
+          <div class="mb-6 ec-card">
+            <p class="mb-3 text-sm font-medium text-[var(--ec-text)]">搜索好友</p>
             <div class="flex gap-2">
               <input
                 v-model="searchKeyword"
                 type="text"
                 placeholder="输入对方昵称搜索"
-                class="flex-1 rounded-md border border-[#E5E5E5] px-3 py-2 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
+                class="ec-input flex-1"
                 @keyup.enter="handleSearch"
               />
               <button
                 type="button"
-                class="cursor-pointer rounded-md bg-[#07C160] px-5 py-2 text-sm text-white transition hover:bg-[#06ad56]"
+                class="ec-btn-primary"
                 @click="handleSearch"
               >
                 搜索
@@ -323,7 +328,7 @@ function onJoinRequestsChanged() {
               <div
                 v-for="f in searchResult"
                 :key="f.userId"
-                class="flex items-center gap-3 rounded-md border border-[#F0F0F0] px-3 py-2.5"
+                class="flex items-center gap-3 rounded-[var(--ec-radius)] border border-[var(--ec-border)] px-3 py-2.5"
               >
                 <div
                   class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[4px] text-sm font-medium text-white"
@@ -333,27 +338,27 @@ function onJoinRequestsChanged() {
                   <span v-else>{{ f.nickname.charAt(0) }}</span>
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm text-[#1A1A1A]">{{ f.nickname }}</p>
-                  <p class="truncate text-xs text-[#B2B2B2]">{{ f.signature || '暂无签名' }}</p>
+                  <p class="truncate text-sm text-[var(--ec-text)]">{{ f.nickname }}</p>
+                  <p class="truncate text-xs text-[var(--ec-text-faint)]">{{ f.signature || '暂无签名' }}</p>
                 </div>
                 <button
                   type="button"
-                  class="cursor-pointer rounded-md border border-[#07C160] px-3 py-1 text-xs text-[#07C160] transition hover:bg-[#07C160]/5"
+                  class="cursor-pointer rounded-[var(--ec-radius)] border border-[var(--ec-primary)] px-3 py-1 text-xs text-[var(--ec-primary)] transition hover:bg-[var(--ec-primary)]/5"
                   @click="handleAddFriend(f)"
                 >
                   添加好友
                 </button>
               </div>
             </div>
-            <p v-else-if="searchKeyword.trim() && !searching" class="mt-3 text-center text-sm text-[#B2B2B2]">
+            <p v-else-if="searchKeyword.trim() && !searching" class="mt-3 text-center text-sm text-[var(--ec-text-faint)]">
               未找到相关用户
             </p>
-            <p v-else-if="searching" class="mt-3 text-center text-sm text-[#B2B2B2]">搜索中...</p>
+            <p v-else-if="searching" class="mt-3 text-center text-sm text-[var(--ec-text-faint)]">搜索中...</p>
           </div>
 
           <!-- 新的朋友（好友申请） -->
-          <div class="rounded-lg bg-white p-4 shadow-sm">
-            <p class="mb-3 text-sm font-medium text-[#1A1A1A]">新的朋友</p>
+          <div class="ec-card">
+            <p class="mb-3 text-sm font-medium text-[var(--ec-text)]">新的朋友</p>
             <div v-if="friendRequests.length" class="space-y-3">
               <div
                 v-for="r in friendRequests"
@@ -368,21 +373,21 @@ function onJoinRequestsChanged() {
                   <span v-else>{{ r.fromName.charAt(0) }}</span>
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm text-[#1A1A1A]">{{ r.fromName }}</p>
-                  <p class="truncate text-xs text-[#8A8A8A]">{{ r.message || '请求添加你为好友' }}</p>
+                  <p class="truncate text-sm text-[var(--ec-text)]">{{ r.fromName }}</p>
+                  <p class="truncate text-xs text-[var(--ec-text-muted)]">{{ r.message || '请求添加你为好友' }}</p>
                 </div>
-                <span class="shrink-0 text-xs text-[#B2B2B2]">{{ r.createdAt }}</span>
+                <span class="shrink-0 text-xs text-[var(--ec-text-faint)]">{{ formatTime(r.createdAt) }}</span>
                 <div class="flex shrink-0 gap-2">
                   <button
                     type="button"
-                    class="cursor-pointer rounded-md bg-[#07C160] px-3 py-1 text-xs text-white transition hover:bg-[#06ad56]"
+                    class="ec-btn-primary px-3 py-1 text-xs"
                     @click="handleRequestAction(r, true)"
                   >
                     接受
                   </button>
                   <button
                     type="button"
-                    class="cursor-pointer rounded-md border border-[#E5E5E5] px-3 py-1 text-xs text-[#8A8A8A] transition hover:bg-[#F5F5F5]"
+                    class="cursor-pointer rounded-[var(--ec-radius)] border border-[var(--ec-border)] px-3 py-1 text-xs text-[var(--ec-text-muted)] transition hover:bg-[var(--ec-bg-subtle)]"
                     @click="handleRequestAction(r, false)"
                   >
                     拒绝
@@ -390,20 +395,20 @@ function onJoinRequestsChanged() {
                 </div>
               </div>
             </div>
-            <p v-else class="py-6 text-center text-sm text-[#B2B2B2]">暂无新的朋友申请</p>
+            <p v-else class="py-6 text-center text-sm text-[var(--ec-text-faint)]">暂无新的朋友申请</p>
           </div>
         </div>
 
         <!-- ========== 我的群聊（我创建的） ========== -->
         <div v-else-if="activeTab === 'myGroups'" class="mx-auto max-w-[640px]">
           <!-- 入群申请审批（群主/管理员） -->
-          <div class="mb-4 rounded-lg bg-white p-4 shadow-sm">
+          <div class="mb-4 rounded-2xl bg-[var(--ec-bg)] p-4 shadow-[0_1px_2px_rgba(26,46,36,0.04)]">
             <GroupJoinRequestsPanel ref="joinRequestsPanelRef" @changed="onJoinRequestsChanged" />
           </div>
 
           <button
             type="button"
-            class="mb-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#07C160] py-2.5 text-sm font-medium text-white transition hover:bg-[#06ad56]"
+            class="ec-btn-primary mb-4 flex w-full items-center justify-center gap-2 py-2.5 text-sm font-medium"
             @click="createGroupOpen = true"
           >
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -412,13 +417,13 @@ function onJoinRequestsChanged() {
             新建群聊
           </button>
 
-          <div class="rounded-lg bg-white p-4 shadow-sm">
-            <p class="mb-3 text-sm font-medium text-[#1A1A1A]">我创建的群聊</p>
+          <div class="ec-card">
+            <p class="mb-3 text-sm font-medium text-[var(--ec-text)]">我创建的群聊</p>
             <div v-if="myGroups.length" class="space-y-3">
               <div
                 v-for="g in myGroups"
                 :key="g.id"
-                class="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-[#F5F5F5]"
+                class="flex cursor-pointer items-center gap-3 rounded-[var(--ec-radius)] px-2 py-1.5 transition-colors duration-150 hover:bg-[var(--ec-bg-subtle)]"
                 @click="openGroupChat(g)"
               >
                 <div
@@ -434,27 +439,27 @@ function onJoinRequestsChanged() {
                   <span v-else>群</span>
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm text-[#1A1A1A]">{{ g.name }}</p>
-                  <p class="text-xs text-[#B2B2B2]">{{ g.members }} 人</p>
+                  <p class="truncate text-sm text-[var(--ec-text)]">{{ g.name }}</p>
+                  <p class="text-xs text-[var(--ec-text-faint)]">{{ g.members }} 人</p>
                 </div>
               </div>
             </div>
-            <p v-else class="py-6 text-center text-sm text-[#B2B2B2]">还没有创建群聊</p>
+            <p v-else class="py-6 text-center text-sm text-[var(--ec-text-faint)]">还没有创建群聊</p>
           </div>
         </div>
 
         <!-- ========== 我加入的群聊 ========== -->
         <div v-else-if="activeTab === 'joinedGroups'" class="mx-auto max-w-[640px]">
-          <div class="rounded-lg bg-white p-4 shadow-sm">
-            <p class="mb-3 text-sm font-medium text-[#1A1A1A]">我加入的群聊</p>
-            <p class="mb-4 text-xs leading-relaxed text-[#B2B2B2]">
+          <div class="ec-card">
+            <p class="mb-3 text-sm font-medium text-[var(--ec-text)]">我加入的群聊</p>
+            <p class="mb-4 text-xs leading-relaxed text-[var(--ec-text-faint)]">
               加入群聊需收到群成员邀请，邀请会出现在聊天列表的「群邀请」会话中。
             </p>
             <div v-if="joinedGroups.length" class="space-y-3">
               <div
                 v-for="g in joinedGroups"
                 :key="g.id"
-                class="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-[#F5F5F5]"
+                class="flex cursor-pointer items-center gap-3 rounded-[var(--ec-radius)] px-2 py-1.5 transition-colors duration-150 hover:bg-[var(--ec-bg-subtle)]"
                 @click="openGroupChat(g)"
               >
                 <div
@@ -470,23 +475,23 @@ function onJoinRequestsChanged() {
                   <span v-else>群</span>
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm text-[#1A1A1A]">{{ g.name }}</p>
-                  <p class="text-xs text-[#B2B2B2]">{{ g.members }} 人</p>
+                  <p class="truncate text-sm text-[var(--ec-text)]">{{ g.name }}</p>
+                  <p class="text-xs text-[var(--ec-text-faint)]">{{ g.members }} 人</p>
                 </div>
               </div>
             </div>
-            <p v-else class="py-6 text-center text-sm text-[#B2B2B2]">还没有加入任何群聊</p>
+            <p v-else class="py-6 text-center text-sm text-[var(--ec-text-faint)]">还没有加入任何群聊</p>
           </div>
         </div>
 
         <!-- ========== 我的好友 ========== -->
         <div v-else class="mx-auto max-w-[640px]">
-          <div class="rounded-lg bg-white p-4 shadow-sm">
+          <div class="ec-card">
             <div v-if="friends.length" class="space-y-3">
               <div
                 v-for="f in friends"
                 :key="f.userId"
-                class="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition-colors duration-150 hover:bg-[#F5F5F5]"
+                class="flex cursor-pointer items-center gap-3 rounded-[var(--ec-radius)] px-2 py-1.5 transition-colors duration-150 hover:bg-[var(--ec-bg-subtle)]"
                 @click="openFriendChat(f)"
               >
                 <div
@@ -497,12 +502,12 @@ function onJoinRequestsChanged() {
                   <span v-else>{{ f.nickname.charAt(0) }}</span>
                 </div>
                 <div class="min-w-0 flex-1">
-                  <p class="truncate text-sm text-[#1A1A1A]">{{ f.nickname }}</p>
-                  <p class="truncate text-xs text-[#B2B2B2]">{{ f.signature || '暂无签名' }}</p>
+                  <p class="truncate text-sm text-[var(--ec-text)]">{{ f.nickname }}</p>
+                  <p class="truncate text-xs text-[var(--ec-text-faint)]">{{ f.signature || '暂无签名' }}</p>
                 </div>
               </div>
             </div>
-            <p v-else class="py-6 text-center text-sm text-[#B2B2B2]">还没有好友</p>
+            <p v-else class="py-6 text-center text-sm text-[var(--ec-text-faint)]">还没有好友</p>
           </div>
         </div>
       </div>

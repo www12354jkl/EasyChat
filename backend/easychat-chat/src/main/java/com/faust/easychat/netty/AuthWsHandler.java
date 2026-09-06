@@ -1,5 +1,6 @@
 package com.faust.easychat.netty;
 
+import com.faust.easychat.service.TokenBlacklistService;
 import com.faust.easychat.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
@@ -27,6 +28,8 @@ public class AuthWsHandler extends ChannelInboundHandlerAdapter {
 
     private final JwtUtil jwtUtil;
 
+    private final TokenBlacklistService tokenBlacklistService;
+
     private final WsSessionManager sessionManager;
 
     @Override
@@ -52,7 +55,12 @@ public class AuthWsHandler extends ChannelInboundHandlerAdapter {
         }
 
         try {
-            Claims claims = jwtUtil.parseToken(tokens.get(0));
+            String token = tokens.get(0);
+            if (tokenBlacklistService.isBlacklisted(token)) {
+                sendError(ctx, request, HttpResponseStatus.UNAUTHORIZED, "Token revoked");
+                return;
+            }
+            Claims claims = jwtUtil.parseToken(token);
 
             // 禁止用 Refresh Token 建立连接
             if (jwtUtil.isRefreshToken(claims)) {

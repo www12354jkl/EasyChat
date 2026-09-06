@@ -24,6 +24,9 @@ public class Message {
 
     private String content;
 
+    /** 1=正常 2=已撤回 */
+    private Integer status;
+
     private LocalDateTime createdAt;
 
 

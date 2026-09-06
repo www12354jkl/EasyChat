@@ -1,0 +1,146 @@
+name: easychat
+
+# 全栈本地开发用（MySQL + Redis + Nacos + 三服务都在本机 Docker 里起）
+# 若中间件已在远程服务器（如 106.54.58.197），请用 docker-compose.apps.yml
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: easychat-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: easychat-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  nacos:
+    image: nacos/nacos-server:v2.4.3
+    container_name: easychat-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+      TZ: Asia/Shanghai
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: easychat-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_ADVERTISED_HOST:-106.54.58.197}:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    ports:
+      - "9092:9092"
+
+  easychat-user:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: easychat-user
+    container_name: easychat-user
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_PASSWORD: ${DB_PASSWORD:-root}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me-32chars!!}
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      nacos:
+        condition: service_started
+    ports:
+      - "8081:8081"
+
+  easychat-chat:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: easychat-chat
+    container_name: easychat-chat
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_PASSWORD: ${DB_PASSWORD:-root}
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me-32chars!!}
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      WS_DELIVERY: kafka
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      nacos:
+        condition: service_started
+      kafka:
+        condition: service_started
+      easychat-user:
+        condition: service_started
+    ports:
+      - "8082:8082"
+      - "8083:8083"
+
+  easychat-gateway:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: easychat-gateway
+    container_name: easychat-gateway
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
+    depends_on:
+      nacos:
+        condition: service_started
+      easychat-user:
+        condition: service_started
+      easychat-chat:
+        condition: service_started
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql_data:
+  redis_data:
