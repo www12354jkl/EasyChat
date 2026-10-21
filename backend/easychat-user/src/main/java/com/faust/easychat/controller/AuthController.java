@@ -12,6 +12,7 @@ import com.faust.easychat.dto.user.ForgetPasswordRequest;
 import com.faust.easychat.dto.user.LoginRequest;
 import com.faust.easychat.dto.user.LogoutRequest;
 import com.faust.easychat.dto.user.RegisterRequest;
+import com.faust.easychat.dto.user.TokenRefreshResponse;
 import com.faust.easychat.result.Result;
 import com.faust.easychat.service.AuthService;
 
@@ -74,10 +75,10 @@ public class AuthController {
         return Result.success();
     }
 
-    @Operation(summary = "刷新 accessToken", description = "请求体为 refreshToken 字符串，例如 \"eyJhbGciOi...\"")
+    @Operation(summary = "刷新令牌", description = "轮换 accessToken 和 refreshToken，旧 refreshToken 立即失效")
     @SecurityRequirements
     @PostMapping("/token/refresh")
-    public Result<String> refreshAccessToken(@RequestBody String refreshToken) {
+    public Result<TokenRefreshResponse> refreshAccessToken(@RequestBody String refreshToken) {
         return Result.success(authService.refreshAccessToken(refreshToken));
     }
 }

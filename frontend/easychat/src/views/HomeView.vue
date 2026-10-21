@@ -68,7 +68,12 @@ function handleNewConversation(c: NewConversationEvent) {
   chatStore.addConversation(mapNewConversationEvent(c))
 }
 
+function syncAfterReconnect() {
+  chatStore.fetchConversations(true)
+}
+
 onMounted(async () => {
+  ws.onOpen(syncAfterReconnect)
   ws.on('CONVERSATION_REMOVED', handleConversationRemoved)
   ws.on('CONVERSATION_UPDATE', handleConversationUpdate)
   ws.on('NEW_CONVERSATION', handleNewConversation)
@@ -87,6 +92,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  ws.offOpen(syncAfterReconnect)
   ws.off('CONVERSATION_REMOVED', handleConversationRemoved)
   ws.off('CONVERSATION_UPDATE', handleConversationUpdate)
   ws.off('NEW_CONVERSATION', handleNewConversation)

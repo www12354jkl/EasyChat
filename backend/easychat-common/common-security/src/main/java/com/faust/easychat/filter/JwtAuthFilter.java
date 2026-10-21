@@ -51,6 +51,10 @@ public class JwtAuthFilter implements Filter {
                 writeError(resp, "无效token");
                 return;
             }
+            if (tokenBlacklistService.isRevokedByPasswordChange(claims.getSubject(), claims.getIssuedAt())) {
+                writeError(resp, "token无效或已过期");
+                return;
+            }
             UserContext.set(claims.getSubject());
             chain.doFilter(req, resp);
         } catch (Exception e) {

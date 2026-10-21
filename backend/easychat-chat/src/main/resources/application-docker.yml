@@ -18,6 +18,10 @@ spring:
 jwt:
     secret: ${JWT_SECRET}
 
+dubbo:
+    protocol:
+        host: 0.0.0.0
+
 easychat:
     ws:
         delivery: ${WS_DELIVERY:local}

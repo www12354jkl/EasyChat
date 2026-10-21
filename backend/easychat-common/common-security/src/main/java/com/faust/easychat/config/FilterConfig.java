@@ -6,11 +6,21 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.faust.easychat.filter.JwtAuthFilter;
+import com.faust.easychat.filter.TraceIdFilter;
 import com.faust.easychat.service.TokenBlacklistService;
 import com.faust.easychat.util.JwtUtil;
 
 @Configuration
 public class FilterConfig {
+
+    @Bean
+    public FilterRegistrationBean<TraceIdFilter> traceIdFilterRegistration() {
+        FilterRegistrationBean<TraceIdFilter> bean = new FilterRegistrationBean<>();
+        bean.setFilter(new TraceIdFilter());
+        bean.addUrlPatterns("/api/*");
+        bean.setOrder(0);
+        return bean;
+    }
 
     @Bean
     public JwtAuthFilter jwtAuthFilter(JwtUtil jwtUtil, TokenBlacklistService tokenBlacklistService,

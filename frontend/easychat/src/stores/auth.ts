@@ -39,6 +39,11 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem(ACCESS_TOKEN_KEY, token)
   }
 
+  function setRefreshToken(token: string) {
+    refreshToken.value = token
+    localStorage.setItem(REFRESH_TOKEN_KEY, token)
+  }
+
   /** 更新用户信息（内存 + localStorage 同步，保证刷新后不丢） */
   function updateUser(partial: Partial<UserInfo>) {
     if (!user.value) return
@@ -58,5 +63,5 @@ export const useAuthStore = defineStore('auth', () => {
     useChatStore().reset()
   }
 
-  return { accessToken, refreshToken, user, isLoggedIn, setSession, setAccessToken, updateUser, clearSession }
+  return { accessToken, refreshToken, user, isLoggedIn, setSession, setAccessToken, setRefreshToken, updateUser, clearSession }
 })

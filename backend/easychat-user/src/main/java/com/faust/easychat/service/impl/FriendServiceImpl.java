@@ -226,6 +226,7 @@ public class FriendServiceImpl implements FriendService {
             conversationDeleteService.removeDirectConversation(currentUserId, id);
         } catch (Exception e) {
             log.warn("删好友后会话清理失败: userId={}, friendId={}", currentUserId, id);
+            throw AppException.serviceUnavailable("聊天服务暂不可用，好友未删除");
         }
     }
 

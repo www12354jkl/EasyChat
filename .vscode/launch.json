@@ -18,7 +18,8 @@
                 "--spring.profiles.active=local",
                 "--server.port=8082",
                 "--ws.port=8083",
-                "--easychat.ws.instance-id=chat-1"
+                "--easychat.ws.instance-id=chat-1",
+                "--dubbo.protocol.port=20881"
             ]
         },
         {
@@ -32,7 +33,8 @@
                 "--server.port=8084",
                 "--ws.port=8085",
                 "--spring.cloud.sentinel.transport.port=8722",
-                "--easychat.ws.instance-id=chat-2"
+                "--easychat.ws.instance-id=chat-2",
+                "--dubbo.protocol.port=20882"
             ]
         },
         {

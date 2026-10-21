@@ -755,8 +755,13 @@ async function onHistoryCleared(conversationId: string) {
 
 // ============ WebSocket 生命周期 ============
 
+function syncOpenConversation() {
+  if (activeId.value) loadMessages(activeId.value)
+}
+
 onMounted(() => {
   ws.connect()
+  ws.onOpen(syncOpenConversation)
   ws.on('NEW_MESSAGE', handleNewMessage)
   ws.on('MESSAGE_UPDATE', handleMessageUpdate)
   ws.on('CONVERSATION_REMOVED', handleConversationRemoved)
@@ -768,6 +773,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  ws.offOpen(syncOpenConversation)
   ws.off('NEW_MESSAGE', handleNewMessage)
   ws.off('MESSAGE_UPDATE', handleMessageUpdate)
   ws.off('CONVERSATION_REMOVED', handleConversationRemoved)

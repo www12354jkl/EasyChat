@@ -15,6 +15,7 @@ import com.faust.easychat.dto.user.AuthResponse;
 import com.faust.easychat.dto.user.ForgetPasswordRequest;
 import com.faust.easychat.dto.user.LoginRequest;
 import com.faust.easychat.dto.user.RegisterRequest;
+import com.faust.easychat.dto.user.TokenRefreshResponse;
 import com.faust.easychat.entity.User;
 import com.faust.easychat.entity.UserSettings;
 import com.faust.easychat.mapper.AuthMapper;
@@ -125,6 +126,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPassword(encodedPassword);
         user.setUpdatedAt(LocalDateTime.now());
         authMapper.updateById(user);
+        tokenBlacklistService.revokeUserTokens(user.getId());
     }
     
     private AuthResponse buildAuthResponse(User user) {
@@ -164,22 +166,38 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String refreshAccessToken(String refreshToken) {
+    public TokenRefreshResponse refreshAccessToken(String refreshToken) {
+        if (refreshToken != null && refreshToken.length() >= 2
+                && refreshToken.startsWith("\"") && refreshToken.endsWith("\"")) {
+            refreshToken = refreshToken.substring(1, refreshToken.length() - 1);
+        }
         if (tokenBlacklistService.isBlacklisted(refreshToken)) {
+            log.warn("refresh rejected: blacklisted");
             throw AppException.tokenInvalid();
         }
         try {
             Claims claims = jwtUtil.parseToken(refreshToken);
             if (!jwtUtil.isRefreshToken(claims)) {
+                log.warn("refresh rejected: type={}", claims.get("type"));
                 throw AppException.tokenInvalid();
             }
-            // 换新 accessToken；refreshToken 无状态不轮换，继续有效
-            return jwtUtil.generateAccessToken(claims.getSubject());
+            if (tokenBlacklistService.isRevokedByPasswordChange(claims.getSubject(), claims.getIssuedAt())) {
+                log.warn("refresh rejected: revoked by password change");
+                throw AppException.tokenInvalid();
+            }
+            String userId = claims.getSubject();
+            TokenRefreshResponse response = new TokenRefreshResponse();
+            response.setAccessToken(jwtUtil.generateAccessToken(userId));
+            response.setRefreshToken(jwtUtil.generateRefreshToken(userId));
+            // 旧 refreshToken 立即作废。响应若丢失，客户端只能重新登录
+            blacklistToken(refreshToken);
+            return response;
         } catch (AppException e) {
             throw e;
         } catch (ExpiredJwtException e) {
             throw AppException.tokenExpired();
         } catch (Exception e) {
+            log.warn("refresh failed: {}", e.toString());
             throw AppException.tokenInvalid();
         }
     }

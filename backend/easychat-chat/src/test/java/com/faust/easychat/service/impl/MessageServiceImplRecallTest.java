@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -22,6 +23,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import com.faust.easychat.context.UserContext;
 import com.faust.easychat.dto.chat.MessageDTO;
+import com.faust.easychat.dto.chat.SendMessageRequest;
 import com.faust.easychat.dto.user.UserBriefDTO;
 import com.faust.easychat.entity.Conversation;
 import com.faust.easychat.entity.ConversationMember;
@@ -122,11 +124,6 @@ class MessageServiceImplRecallTest {
         Message message = message(MSG_ID, USER_ID, 1, 1, LocalDateTime.now());
         when(messageMapper.selectById(MSG_ID)).thenReturn(message);
         when(conversationMemberMapper.selectByConversationAndUser(CONV_ID, USER_ID)).thenReturn(member(USER_ID));
-        when(messageMapper.selectCount(any())).thenReturn(0L);
-        Conversation conversation = new Conversation();
-        conversation.setId(CONV_ID);
-        conversation.setLastMessage("hello");
-        when(conversationMapper.selectById(CONV_ID)).thenReturn(conversation);
 
         UserBriefDTO sender = new UserBriefDTO();
         sender.setUserId(USER_ID);
@@ -141,18 +138,18 @@ class MessageServiceImplRecallTest {
         assertEquals(2, dto.getStatus());
         verify(messageMapper).updateById(message);
         assertEquals(2, message.getStatus());
-        verify(conversationMapper).updateById(conversation);
-        assertEquals("[已撤回]", conversation.getLastMessage());
+        verify(conversationMapper).updateLastMessageIfNotNewer(
+                eq(CONV_ID), eq("[已撤回]"), eq(message.getCreatedAt()), any(LocalDateTime.class));
         verify(wsMessageSender).sendToUser(eq(USER_ID), eq("MESSAGE_UPDATE"), any(MessageDTO.class));
         verify(wsMessageSender).sendToUser(eq(OTHER_ID), eq("MESSAGE_UPDATE"), any(MessageDTO.class));
     }
 
     @Test
-    void recallMessage_whenNewerMessageExists_doesNotUpdateConversationSummary() {
-        Message message = message(MSG_ID, USER_ID, 1, 1, LocalDateTime.now());
+    void recallMessage_passesRecalledTimeSoNewerSummaryWins() {
+        LocalDateTime createdAt = LocalDateTime.now().minusSeconds(5);
+        Message message = message(MSG_ID, USER_ID, 1, 1, createdAt);
         when(messageMapper.selectById(MSG_ID)).thenReturn(message);
         when(conversationMemberMapper.selectByConversationAndUser(CONV_ID, USER_ID)).thenReturn(member(USER_ID));
-        when(messageMapper.selectCount(any())).thenReturn(1L);
 
         UserBriefDTO sender = new UserBriefDTO();
         sender.setUserId(USER_ID);
@@ -162,7 +159,87 @@ class MessageServiceImplRecallTest {
 
         messageService.recallMessage(MSG_ID);
 
-        verify(conversationMapper, never()).updateById(any(Conversation.class));
+        verify(conversationMapper).updateLastMessageIfNotNewer(
+                eq(CONV_ID), eq("[已撤回]"), eq(createdAt), any(LocalDateTime.class));
+    }
+
+    @Test
+    void summarizeLastMessage_longText_isTruncated() {
+        String content = "a".repeat(600);
+        String summary = MessageServiceImpl.summarizeLastMessage(1, content);
+        assertEquals(500, summary.length());
+    }
+
+    @Test
+    void summarizeLastMessage_image_usesLabel() {
+        assertEquals("[图片]", MessageServiceImpl.summarizeLastMessage(2, "https://example.com/a.png"));
+    }
+
+    @Test
+    void clampPageSize_capsLargeAndFixesNonPositive() {
+        assertEquals(100, MessageServiceImpl.clampPageSize(10_000));
+        assertEquals(30, MessageServiceImpl.clampPageSize(0));
+        assertEquals(30, MessageServiceImpl.clampPageSize(-1));
+    }
+
+    @Test
+    void sendMessage_sameClientMsgId_returnsExistingWithoutInsert() {
+        Conversation conversation = new Conversation();
+        conversation.setId(CONV_ID);
+        conversation.setType(1);
+        when(conversationMapper.selectById(CONV_ID)).thenReturn(conversation);
+        UserBriefDTO user = new UserBriefDTO();
+        user.setUserId(USER_ID);
+        user.setNickname("n");
+        when(userQueryService.getUserById(USER_ID)).thenReturn(user);
+        when(conversationMemberMapper.selectByConversationAndUser(CONV_ID, USER_ID)).thenReturn(member(USER_ID));
+        Message existing = message(MSG_ID, USER_ID, 1, 1, LocalDateTime.now());
+        existing.setClientMsgId("c1");
+        existing.setContent("hello");
+        when(messageMapper.selectOne(any())).thenReturn(existing);
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setConversationId(CONV_ID);
+        request.setContent("hello");
+        request.setContentType(1);
+        request.setClientMsgId("c1");
+
+        MessageDTO dto = messageService.sendMessage(request);
+
+        assertEquals(MSG_ID, dto.getId());
+        verify(messageMapper, never()).insert(any(Message.class));
+    }
+
+    @Test
+    void sendMessage_pushFailure_keepsStoredMessage() {
+        Conversation conversation = new Conversation();
+        conversation.setId(CONV_ID);
+        conversation.setType(1);
+        when(conversationMapper.selectById(CONV_ID)).thenReturn(conversation);
+        UserBriefDTO user = new UserBriefDTO();
+        user.setUserId(USER_ID);
+        user.setNickname("n");
+        when(userQueryService.getUserById(USER_ID)).thenReturn(user);
+        when(conversationMemberMapper.selectByConversationAndUser(CONV_ID, USER_ID)).thenReturn(member(USER_ID));
+        when(conversationMemberMapper.selectConversationAllMembers(CONV_ID)).thenReturn(List.of(member(OTHER_ID)));
+        doThrow(new RuntimeException("push down")).when(wsMessageSender)
+                .sendToUser(eq(OTHER_ID), eq("NEW_MESSAGE"), any());
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setConversationId(CONV_ID);
+        request.setContent("hello");
+        request.setContentType(1);
+
+        MessageDTO dto = messageService.sendMessage(request);
+
+        assertEquals("hello", dto.getContent());
+        verify(messageMapper).insert(any(Message.class));
+    }
+
+    @Test
+    void chatFileSuffix_rejectsHtml() {
+        assertThrows(AppException.class, () -> MessageServiceImpl.chatFileSuffix("page.html"));
+        assertEquals(".png", MessageServiceImpl.chatFileSuffix("a.PNG"));
     }
 
     private static Message message(String id, String senderId, int status, int contentType, LocalDateTime createdAt) {

@@ -129,6 +129,9 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me-32chars!!}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
     depends_on:

@@ -9,6 +9,8 @@ import org.springframework.cloud.client.loadbalancer.RequestData;
 import org.springframework.cloud.client.loadbalancer.RequestDataContext;
 import org.springframework.cloud.client.loadbalancer.Response;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
+import org.springframework.cloud.gateway.filter.OrderedGatewayFilter;
+import org.springframework.cloud.gateway.filter.RouteToRequestUrlFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.cloud.gateway.support.NotFoundException;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
@@ -39,16 +41,13 @@ public class WsLoadBalancerGatewayFilterFactory
 
     @Override
     public GatewayFilter apply(Config config) {
-        return (exchange, chain) -> {
+        // 晚于 RouteToRequestUrlFilter，避免它把目标改回 no://op 之后没有人转发升级请求
+        return new OrderedGatewayFilter((exchange, chain) -> {
             String serviceId = config.getServiceId();
             if (serviceId == null || serviceId.isBlank()) {
                 return Mono.error(new IllegalArgumentException("WsLoadBalancer serviceId must not be empty"));
             }
-            URI incomingUrl = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR);
-            if (incomingUrl == null) {
-                incomingUrl = exchange.getRequest().getURI();
-            }
-            URI requestUri = incomingUrl;
+            URI requestUri = exchange.getRequest().getURI();
             return choose(serviceId, exchange).flatMap(response -> {
                 if (response == null || !response.hasServer()) {
                     log.warn("No WS backend available for service {}", serviceId);
@@ -56,8 +55,9 @@ public class WsLoadBalancerGatewayFilterFactory
                 }
                 ServiceInstance instance = response.getServer();
                 String wsPort = instance.getMetadata().getOrDefault(WS_PORT_METADATA, DEFAULT_WS_PORT);
+                String scheme = "https".equalsIgnoreCase(requestUri.getScheme()) ? "wss" : "ws";
                 URI targetUrl = UriComponentsBuilder.newInstance()
-                        .scheme("http")
+                        .scheme(scheme)
                         .host(instance.getHost())
                         .port(Integer.parseInt(wsPort))
                         .path(requestUri.getRawPath())
@@ -69,7 +69,7 @@ public class WsLoadBalancerGatewayFilterFactory
                 exchange.getAttributes().put(ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR, targetUrl);
                 return chain.filter(exchange);
             });
-        };
+        }, RouteToRequestUrlFilter.ROUTE_TO_URL_FILTER_ORDER + 200);
     }
 
     private Mono<Response<ServiceInstance>> choose(String serviceId, ServerWebExchange exchange) {

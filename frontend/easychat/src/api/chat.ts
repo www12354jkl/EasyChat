@@ -1,4 +1,4 @@
-import { request } from './request'
+import { request, ApiError } from './request'
 
 export interface CreateGroupParams {
   name: string
@@ -123,13 +123,22 @@ export async function getMessagePage(
   return request<MessagePage>(`/api/chat/messages?${params.toString()}`)
 }
 
-/** 发送消息（后端 POST /api/chat/message） */
-export function sendMessage(params: {
+/** 发送消息（后端 POST /api/chat/message）。网络失败时用同一个 clientMsgId 再试一次，避免插出两条 */
+export async function sendMessage(params: {
   conversationId: string
   content: string
   contentType?: number
+  clientMsgId?: string
 }): Promise<MessageRecord> {
-  return request<MessageRecord>('/api/chat/message', { method: 'POST', body: params })
+  const body = { ...params, clientMsgId: params.clientMsgId ?? crypto.randomUUID() }
+  try {
+    return await request<MessageRecord>('/api/chat/message', { method: 'POST', body })
+  } catch (e) {
+    if (e instanceof ApiError && e.message === '网络连接失败，请检查网络') {
+      return request<MessageRecord>('/api/chat/message', { method: 'POST', body })
+    }
+    throw e
+  }
 }
 
 /** 撤回消息（后端 POST /api/chat/message/{id}/recall，2 分钟内且仅自己发送） */

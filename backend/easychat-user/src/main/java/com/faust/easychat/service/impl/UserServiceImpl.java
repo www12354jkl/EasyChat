@@ -28,6 +28,7 @@ import com.faust.easychat.entity.UserSettings;
 import com.faust.easychat.exception.AppException;
 import com.faust.easychat.mapper.UserMapper;
 import com.faust.easychat.mapper.UserSettingsMapper;
+import com.faust.easychat.service.TokenBlacklistService;
 import com.faust.easychat.service.UserService;
 import com.faust.easychat.util.CosUtil;
 import com.faust.easychat.util.EmailUtil;
@@ -49,6 +50,8 @@ public class UserServiceImpl implements UserService {
     private final EmailUtil emailUtil;
 
     private final BCryptPasswordEncoder passwordEncoder;
+
+    private final TokenBlacklistService tokenBlacklistService;
 
     private final StringRedisTemplate redisTemplate;
 
@@ -138,6 +141,7 @@ public class UserServiceImpl implements UserService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
+        tokenBlacklistService.revokeUserTokens(id);
     }
 
     @Override

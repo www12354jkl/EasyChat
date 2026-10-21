@@ -1,5 +1,6 @@
 package com.faust.easychat.ws;
 
+import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -29,11 +30,26 @@ public class WsPushKafkaConsumer {
         if (event == null || event.getToUserId() == null || event.getType() == null) {
             return;
         }
-        if (sessionManager.getChannel(event.getToUserId()) == null) {
+        boolean online = sessionManager.getChannel(event.getToUserId()) != null;
+        log.info("ws push type={} toUserId={} online={} traceId={}", event.getType(), event.getToUserId(), online,
+                event.getTraceId());
+        if (!online) {
             return;
         }
-        Object payload = deserializePayload(event.getPayloadJson());
-        channelWriter.sendToUser(event.getToUserId(), event.getType(), payload);
+        String previous = MDC.get("traceId");
+        if (event.getTraceId() != null && !event.getTraceId().isBlank()) {
+            MDC.put("traceId", event.getTraceId());
+        }
+        try {
+            Object payload = deserializePayload(event.getPayloadJson());
+            channelWriter.sendToUser(event.getToUserId(), event.getType(), payload);
+        } finally {
+            if (previous == null) {
+                MDC.remove("traceId");
+            } else {
+                MDC.put("traceId", previous);
+            }
+        }
     }
 
     private Object deserializePayload(String payloadJson) {

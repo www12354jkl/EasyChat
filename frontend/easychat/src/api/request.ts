@@ -34,15 +34,24 @@ async function doRefresh(): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(auth.refreshToken),
   })
-  const result = (await res.json().catch(() => null)) as { code?: number; message?: string; data?: string } | null
-  if (!res.ok || !result || result.code !== 200 || !result.data) {
+  const result = (await res.json().catch(() => null)) as {
+    code?: number
+    message?: string
+    data?: { accessToken?: string; refreshToken?: string }
+  } | null
+  if (!res.ok || !result || result.code !== 200 || !result.data?.accessToken || !result.data.refreshToken) {
     throw new ApiError(result?.message ?? '登录已过期', result?.code ?? 401)
   }
-  auth.setAccessToken(result.data)
-  return result.data
+  auth.setAccessToken(result.data.accessToken)
+  auth.setRefreshToken(result.data.refreshToken)
+  return result.data.accessToken
 }
 
 /** 单飞：并发请求共享同一次刷新，失败后允许下一次重试 */
+export function refreshSession(): Promise<string> {
+  return refreshOnce()
+}
+
 function refreshOnce(): Promise<string> {
   if (!refreshing) {
     refreshing = doRefresh().finally(() => {

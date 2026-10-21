@@ -4,6 +4,7 @@ import com.faust.easychat.dto.user.AuthResponse;
 import com.faust.easychat.dto.user.ForgetPasswordRequest;
 import com.faust.easychat.dto.user.LoginRequest;
 import com.faust.easychat.dto.user.RegisterRequest;
+import com.faust.easychat.dto.user.TokenRefreshResponse;
 
 public interface AuthService {
 
@@ -17,6 +18,6 @@ public interface AuthService {
 
     void logout(String authHeader, String refreshToken);
 
-    String refreshAccessToken(String refreshToken);
+    TokenRefreshResponse refreshAccessToken(String refreshToken);
 
 }

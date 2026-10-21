@@ -19,17 +19,17 @@ export function resolveApiUrl(path: string): string {
   return base ? `${base}${normalized}` : normalized
 }
 
-/** WebSocket 连接地址 */
-export function resolveWsUrl(token: string): string {
+/** WebSocket 连接地址。ticket 是 30 秒一次性票据，不是登录令牌 */
+export function resolveWsUrl(ticket: string): string {
   const wsBase = import.meta.env.VITE_WS_BASE as string | undefined
   if (wsBase) {
     const url = new URL(wsBase)
     if (!url.pathname.endsWith('/ws')) {
       url.pathname = `${url.pathname.replace(/\/$/, '')}/ws`
     }
-    url.search = `token=${encodeURIComponent(token)}`
+    url.search = `ticket=${encodeURIComponent(ticket)}`
     return url.toString()
   }
   const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${proto}://${window.location.host}/ws?token=${encodeURIComponent(token)}`
+  return `${proto}://${window.location.host}/ws?ticket=${encodeURIComponent(ticket)}`
 }

@@ -1,10 +1,8 @@
 package com.faust.easychat.netty;
 
-import com.faust.easychat.service.TokenBlacklistService;
-import com.faust.easychat.util.JwtUtil;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.ExpiredJwtException;
-import io.jsonwebtoken.JwtException;
+import com.faust.easychat.service.WsTicketService;
+import com.faust.easychat.netty.WsSessionManager;
+
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -13,12 +11,14 @@ import io.netty.handler.codec.http.*;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.netty.util.AttributeKey;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+@Slf4j
 @RequiredArgsConstructor
 public class AuthWsHandler extends ChannelInboundHandlerAdapter {
 
@@ -26,9 +26,7 @@ public class AuthWsHandler extends ChannelInboundHandlerAdapter {
 
     private static final String WS_PATH = "/ws";
 
-    private final JwtUtil jwtUtil;
-
-    private final TokenBlacklistService tokenBlacklistService;
+    private final WsTicketService wsTicketService;
 
     private final WsSessionManager sessionManager;
 
@@ -47,40 +45,27 @@ public class AuthWsHandler extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        // 从 URL 参数取 token
-        List<String> tokens = decoder.parameters().get("token");
-        if (tokens == null || tokens.isEmpty()) {
-            sendError(ctx, request, HttpResponseStatus.UNAUTHORIZED, "Missing token");
+        String ticket = request.headers().get("X-Ws-Ticket");
+        if (ticket == null || ticket.isBlank()) {
+            List<String> tickets = decoder.parameters().get("ticket");
+            if (tickets != null && !tickets.isEmpty()) {
+                ticket = tickets.get(0);
+            }
+        }
+        if (ticket == null || ticket.isBlank()) {
+            log.warn("ws handshake missing ticket path={}", decoder.path());
+            sendError(ctx, request, HttpResponseStatus.UNAUTHORIZED, "Missing ticket");
             return;
         }
-
-        try {
-            String token = tokens.get(0);
-            if (tokenBlacklistService.isBlacklisted(token)) {
-                sendError(ctx, request, HttpResponseStatus.UNAUTHORIZED, "Token revoked");
-                return;
-            }
-            Claims claims = jwtUtil.parseToken(token);
-
-            // 禁止用 Refresh Token 建立连接
-            if (jwtUtil.isRefreshToken(claims)) {
-                sendError(ctx, request, HttpResponseStatus.UNAUTHORIZED, "Refresh token not allowed");
-                return;
-            }
-            String userId = claims.getSubject();
-
-            // 绑定用户ID到 Channel
-            ctx.channel().attr(USER_ID).set(userId);
-
-            sessionManager.register(userId, ctx.channel());
-
-            ctx.fireChannelRead(msg);
-
-        } catch (ExpiredJwtException e) {
-            sendError(ctx, request, HttpResponseStatus.UNAUTHORIZED, "Token expired");
-        } catch (JwtException | IllegalArgumentException e) {
-            sendError(ctx, request, HttpResponseStatus.UNAUTHORIZED, "Invalid token");
+        String userId = wsTicketService.consume(ticket);
+        if (userId == null || userId.isBlank()) {
+            log.warn("ws handshake ticket rejected");
+            sendError(ctx, request, HttpResponseStatus.UNAUTHORIZED, "Invalid ticket");
+            return;
         }
+        ctx.channel().attr(USER_ID).set(userId);
+        sessionManager.register(userId, ctx.channel());
+        ctx.fireChannelRead(msg);
     }
 
     private void sendError(ChannelHandlerContext ctx, FullHttpRequest request,

@@ -11,4 +11,7 @@ public class SendMessageRequest {
 
     private Integer contentType;
 
+    /** 同一发送者重复提交时只保留第一条 */
+    private String clientMsgId;
+
 }

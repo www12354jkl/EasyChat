@@ -7,8 +7,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -16,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class TokenBlacklistServiceImplTest {
@@ -27,6 +30,11 @@ class TokenBlacklistServiceImplTest {
 
     @InjectMocks
     private TokenBlacklistServiceImpl tokenBlacklistService;
+
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(tokenBlacklistService, "refreshExpirationMs", 604_800_000L);
+    }
 
     @Test
     void blacklist_positiveTtl_setsRedisKey() {
@@ -52,5 +60,15 @@ class TokenBlacklistServiceImplTest {
 
         assertTrue(tokenBlacklistService.isBlacklisted("access-token"));
         assertFalse(tokenBlacklistService.isBlacklisted("other"));
+    }
+
+    @Test
+    void passwordChange_rejectsTokensIssuedAtOrBeforeCutoff() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("token:revoke-before:user-1")).thenReturn("1700000000000");
+
+        assertTrue(tokenBlacklistService.isRevokedByPasswordChange("user-1", new Date(1700000000000L)));
+        assertTrue(tokenBlacklistService.isRevokedByPasswordChange("user-1", new Date(1699999999999L)));
+        assertFalse(tokenBlacklistService.isRevokedByPasswordChange("user-1", new Date(1700000000001L)));
     }
 }

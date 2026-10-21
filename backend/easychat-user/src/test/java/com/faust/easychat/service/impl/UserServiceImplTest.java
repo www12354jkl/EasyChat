@@ -17,11 +17,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import com.faust.easychat.dto.user.ResetPasswordRequest;
 import com.faust.easychat.dto.user.UserBriefDTO;
 import com.faust.easychat.entity.User;
 import com.faust.easychat.exception.AppException;
 import com.faust.easychat.mapper.UserMapper;
 import com.faust.easychat.mapper.UserSettingsMapper;
+import com.faust.easychat.service.TokenBlacklistService;
 import com.faust.easychat.util.CosUtil;
 import com.faust.easychat.util.EmailUtil;
 
@@ -38,6 +40,8 @@ class UserServiceImplTest {
     private EmailUtil emailUtil;
     @Mock
     private BCryptPasswordEncoder passwordEncoder;
+    @Mock
+    private TokenBlacklistService tokenBlacklistService;
     @Mock
     private StringRedisTemplate redisTemplate;
 
@@ -71,6 +75,27 @@ class UserServiceImplTest {
         when(userMapper.selectByIds(eq(List.of("id-1")))).thenReturn(List.of());
 
         assertThrows(AppException.class, () -> userService.batchGetUsers("id-1"));
+    }
+
+    @Test
+    void resetPassword_revokesTokensIssuedBeforeTheChange() {
+        User user = user("id-1", "Alice", "a.png");
+        user.setEmail("a@b.c");
+        user.setPassword("old-hash");
+        when(userMapper.selectById("id-1")).thenReturn(user);
+        when(emailUtil.verifyCode("a@b.c", "123456")).thenReturn(true);
+        when(passwordEncoder.matches("old-pass", "old-hash")).thenReturn(true);
+        when(passwordEncoder.encode("new-pass")).thenReturn("new-hash");
+
+        ResetPasswordRequest request = new ResetPasswordRequest();
+        request.setEmail("a@b.c");
+        request.setCode("123456");
+        request.setOldPassword("old-pass");
+        request.setNewPassword("new-pass");
+
+        userService.resetPassword("id-1", request);
+
+        verify(tokenBlacklistService).revokeUserTokens("id-1");
     }
 
     private static User user(String id, String nickname, String avatar) {

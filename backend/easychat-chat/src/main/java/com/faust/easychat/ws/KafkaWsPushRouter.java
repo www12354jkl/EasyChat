@@ -3,6 +3,8 @@ package com.faust.easychat.ws;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import org.slf4j.MDC;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.faust.easychat.dto.ws.WsPushEvent;
@@ -24,7 +26,7 @@ public class KafkaWsPushRouter implements WsPushRouter {
     public void route(String toUserId, String type, Object payload) {
         try {
             String payloadJson = payload == null ? null : MAPPER.writeValueAsString(payload);
-            publisher.publish(new WsPushEvent(toUserId, type, payloadJson));
+            publisher.publish(new WsPushEvent(toUserId, type, payloadJson, MDC.get("traceId")));
         } catch (JsonProcessingException e) {
             throw AppException.internalError("WebSocket 推送序列化失败");
         }

@@ -124,19 +124,27 @@ dubbo:
     name: ${spring.application.name}
     qos-enable: false
     serialize-check-status: WARN
+    # 应用级注册会用 Dubbo 端口占用同名 Nacos 服务，网关会把 HTTP 转到 20881
+    register-mode: interface
+    service-discovery:
+      migration: FORCE_INTERFACE
   registry:
     address: nacos://${NACOS_SERVER_ADDR:localhost:8848}
     username: ${NACOS_USERNAME:nacos}
     password: ${NACOS_PASSWORD:}
   protocol:
     name: dubbo
-    port: -1
+    # 127.0.0.1 会被 Dubbo 换成任意网卡。本机多网卡时在 application-local.yml 写成固定 IP
+    host: ${DUBBO_HOST:127.0.0.1}
+    port: ${DUBBO_PORT:20881}
   consumer:
     check: false
     timeout: 5000
 
 logging:
-    level:
+  pattern:
+    level: "%5p [traceId=%X{traceId:-}]"
+  level:
         org.flywaydb: INFO
         org.springframework.boot.flyway: INFO
 

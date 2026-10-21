@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import com.faust.easychat.api.chat.ConversationDeleteService;
 
 /**
- * chat-service 不可用时的会话清理降级：静默跳过，好友关系仍已删除。
+ * chat-service 不可用时不要假装删掉了会话，抛错让删好友事务回滚。
  */
 public class ConversationDeleteServiceFallback implements ConversationDeleteService {
 
@@ -16,5 +16,6 @@ public class ConversationDeleteServiceFallback implements ConversationDeleteServ
     public void removeDirectConversation(String userId, String friendId) {
         log.warn("ConversationDeleteService 降级: removeDirectConversation userId={}, friendId={}",
                 userId, friendId);
+        throw new IllegalStateException("聊天服务暂不可用");
     }
 }

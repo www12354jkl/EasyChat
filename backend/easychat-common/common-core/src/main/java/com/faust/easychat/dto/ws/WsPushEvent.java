@@ -15,4 +15,7 @@ public class WsPushEvent {
 
     /** JSON 字符串，消费端再反序列化为 payload 对象 */
     private String payloadJson;
+
+    /** 发出这次推送的请求号，方便和网关日志对上 */
+    private String traceId;
 }

@@ -6,10 +6,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.dubbo.config.annotation.DubboReference;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -48,6 +50,10 @@ public class MessageServiceImpl implements MessageService {
     private static final int STATUS_RECALLED = 2;
     private static final Duration RECALL_WINDOW = Duration.ofMinutes(2);
     private static final String RECALLED_SUMMARY = "[已撤回]";
+    private static final int LAST_MESSAGE_MAX = 500;
+    private static final Set<String> CHAT_FILE_SUFFIXES = Set.of(
+            ".jpg", ".jpeg", ".png", ".gif", ".webp",
+            ".pdf", ".txt", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip");
 
     private final WsMessageSender wsMessageSender;
 
@@ -91,6 +97,13 @@ public class MessageServiceImpl implements MessageService {
         if (content == null || content.isBlank()) {
             throw AppException.badRequest("消息内容不能为空");
         }
+        String clientMsgId = normalizeClientMsgId(request.getClientMsgId());
+        if (clientMsgId != null) {
+            Message existing = findByClientMsgId(sender.getUserId(), clientMsgId);
+            if (existing != null) {
+                return toMessageDto(existing, sender);
+            }
+        }
 
         LocalDateTime now = LocalDateTime.now();
         Message message = new Message();
@@ -98,18 +111,21 @@ public class MessageServiceImpl implements MessageService {
         message.setContent(request.getContent());
         message.setContentType(contentType);
         message.setSenderId(sender.getUserId());
+        message.setClientMsgId(clientMsgId);
         message.setCreatedAt(now);
         message.setStatus(STATUS_NORMAL);
-        messageMapper.insert(message);
+        try {
+            messageMapper.insert(message);
+        } catch (DuplicateKeyException e) {
+            Message existing = clientMsgId == null ? null : findByClientMsgId(sender.getUserId(), clientMsgId);
+            if (existing == null) {
+                throw e;
+            }
+            return toMessageDto(existing, sender);
+        }
 
-        String lastMessage = switch (contentType) {
-            case 2 -> "[图片]";
-            case 3 -> "[文件]";
-            default -> content;
-        };
-        conversation.setLastMessage(lastMessage);
-        conversation.setLastMessageAt(now);
-        conversationMapper.updateById(conversation);
+        String lastMessage = summarizeLastMessage(contentType, content);
+        conversationMapper.updateLastMessageIfNotNewer(conversation.getId(), lastMessage, now, now);
 
         MessageDTO dto = new MessageDTO();
         dto.setId(message.getId());
@@ -127,7 +143,7 @@ public class MessageServiceImpl implements MessageService {
 
         for (ConversationMember member : members) {
             if (!member.getUserId().equals(sender.getUserId())) {
-                wsMessageSender.sendToUser(member.getUserId(), "NEW_MESSAGE", dto);
+                pushSafely(member.getUserId(), "NEW_MESSAGE", dto, message.getId());
             }
         }
 
@@ -169,7 +185,7 @@ public class MessageServiceImpl implements MessageService {
         List<ConversationMember> members = conversationMemberMapper
                 .selectConversationAllMembers(message.getConversationId());
         for (ConversationMember member : members) {
-            wsMessageSender.sendToUser(member.getUserId(), "MESSAGE_UPDATE", dto);
+            pushSafely(member.getUserId(), "MESSAGE_UPDATE", dto, message.getId());
         }
         return dto;
     }
@@ -180,6 +196,8 @@ public class MessageServiceImpl implements MessageService {
         if (me == null) {
             throw AppException.forbidden("你不是该会话成员");
         }
+        page = Math.max(page, 1);
+        size = clampPageSize(size);
         LambdaQueryWrapper<Message> wrapper = new LambdaQueryWrapper<Message>()
                 .eq(Message::getConversationId, conversationId)
                 .gt(me.getClearedAt() != null, Message::getCreatedAt, me.getClearedAt())
@@ -328,10 +346,7 @@ public class MessageServiceImpl implements MessageService {
             throw AppException.badRequest("文件大小不能超过20MB");
         }
         String original = file.getOriginalFilename();
-        String suffix = "";
-        if (original != null && original.contains(".")) {
-            suffix = original.substring(original.lastIndexOf("."));
-        }
+        String suffix = chatFileSuffix(original);
         String path = "easychat/chat-files/" + UUID.randomUUID() + suffix;
         String url = cosUtil.upload(file, path);
         return url;
@@ -406,18 +421,71 @@ public class MessageServiceImpl implements MessageService {
     }
 
     private void updateConversationLastMessageIfNeeded(Message message) {
-        long newerCount = messageMapper.selectCount(new LambdaQueryWrapper<Message>()
-                .eq(Message::getConversationId, message.getConversationId())
-                .gt(Message::getCreatedAt, message.getCreatedAt()));
-        if (newerCount > 0) {
-            return;
+        conversationMapper.updateLastMessageIfNotNewer(
+                message.getConversationId(),
+                RECALLED_SUMMARY,
+                message.getCreatedAt(),
+                LocalDateTime.now());
+    }
+
+    static int clampPageSize(int size) {
+        if (size < 1) {
+            return 30;
         }
-        Conversation conversation = conversationMapper.selectById(message.getConversationId());
-        if (conversation == null) {
-            return;
+        return Math.min(size, 100);
+    }
+
+    static String chatFileSuffix(String original) {
+        if (original == null || !original.contains(".")) {
+            throw AppException.badRequest("不支持的文件类型");
         }
-        conversation.setLastMessage(RECALLED_SUMMARY);
-        conversationMapper.updateById(conversation);
+        String suffix = original.substring(original.lastIndexOf('.')).toLowerCase();
+        if (!CHAT_FILE_SUFFIXES.contains(suffix)) {
+            throw AppException.badRequest("不支持的文件类型");
+        }
+        return suffix;
+    }
+
+    static String summarizeLastMessage(Integer contentType, String content) {
+        int type = contentType == null ? 1 : contentType;
+        return switch (type) {
+            case 2 -> "[图片]";
+            case 3 -> "[文件]";
+            default -> abbreviate(content, LAST_MESSAGE_MAX);
+        };
+    }
+
+    private static String abbreviate(String content, int max) {
+        if (content == null || content.length() <= max) {
+            return content == null ? "" : content;
+        }
+        return content.substring(0, max);
+    }
+
+    private void pushSafely(String userId, String type, Object payload, String messageId) {
+        try {
+            wsMessageSender.sendToUser(userId, type, payload);
+        } catch (RuntimeException e) {
+            log.warn("消息已入库但推送失败 messageId={} toUserId={} type={}", messageId, userId, type, e);
+        }
+    }
+
+    private Message findByClientMsgId(String senderId, String clientMsgId) {
+        return messageMapper.selectOne(new LambdaQueryWrapper<Message>()
+                .eq(Message::getSenderId, senderId)
+                .eq(Message::getClientMsgId, clientMsgId)
+                .last("LIMIT 1"));
+    }
+
+    private static String normalizeClientMsgId(String clientMsgId) {
+        if (!StringUtils.hasText(clientMsgId)) {
+            return null;
+        }
+        String trimmed = clientMsgId.trim();
+        if (trimmed.length() > 64) {
+            throw AppException.badRequest("客户端消息号过长");
+        }
+        return trimmed;
     }
 
     private static MessageDTO toMessageDto(Message message, UserBriefDTO sender) {

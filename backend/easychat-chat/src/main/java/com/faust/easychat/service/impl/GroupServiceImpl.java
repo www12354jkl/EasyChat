@@ -357,8 +357,11 @@ public class GroupServiceImpl implements GroupService {
         }
 
         if (currentUserId.equals(conversation.getOwnerId())) {
-            // 群主退群 = 解散群：删全部成员记录 + 删群
             List<ConversationMember> conversationMembers = conversationMemberMapper.selectConversationAllMembers(conversationId);
+            Map<String, String> removed = Map.of("id", conversationId);
+            for (ConversationMember member : conversationMembers) {
+                wsMessageSender.sendToUser(member.getUserId(), "CONVERSATION_REMOVED", removed);
+            }
             List<String> userIds = conversationMembers.stream().map(ConversationMember::getUserId).toList();
             if (!userIds.isEmpty()) {
                 conversationMemberMapper.batchDelete(conversationId, userIds);

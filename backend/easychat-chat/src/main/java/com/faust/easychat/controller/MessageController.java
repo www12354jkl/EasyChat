@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.faust.easychat.context.UserContext;
 import com.faust.easychat.dto.chat.ConversationResponse;
 import com.faust.easychat.dto.chat.MessageDTO;
 import com.faust.easychat.dto.chat.SendMessageRequest;
@@ -24,6 +25,7 @@ import com.faust.easychat.netty.WsSessionManager;
 import com.faust.easychat.result.PageResult;
 import com.faust.easychat.result.Result;
 import com.faust.easychat.service.MessageService;
+import com.faust.easychat.service.WsTicketService;
 
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +45,14 @@ public class MessageController {
     private final MessageService messageService;
 
     private final WsSessionManager wsSessionManager;
+
+    private final WsTicketService wsTicketService;
+
+    @Operation(summary = "申请 WebSocket 连接票据", description = "30 秒内一次性使用，连接地址使用 ticket 而不是登录令牌")
+    @PostMapping("/ws-ticket")
+    public Result<Map<String, String>> issueWsTicket() {
+        return Result.success(Map.of("ticket", wsTicketService.issue(UserContext.get())));
+    }
 
     @Operation(summary = "发送消息")
     @PostMapping("/message")
