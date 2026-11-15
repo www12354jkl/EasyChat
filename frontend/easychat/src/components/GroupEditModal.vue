@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { authInputClass } from '@/components/auth/auth-ui'
 
 const props = defineProps<{
   title: string
   value: string
-  /** name=群昵称（单行输入），announcement=群公告（多行文本） */
   field: 'name' | 'announcement'
   maxLength?: number
 }>()
@@ -31,15 +31,11 @@ function handleSave() {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="emit('close')">
-    <div class="w-[340px] overflow-hidden rounded-lg bg-white shadow-xl">
+  <div class="ec-modal-overlay" @click.self="emit('close')">
+    <div class="ec-modal-panel w-[340px]">
       <div class="flex items-center justify-between px-5 pb-2 pt-4">
-        <p class="text-base font-medium text-[#1A1A1A]">{{ title }}</p>
-        <button
-          type="button"
-          class="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[#8A8A8A] transition-colors hover:bg-[#F5F5F5]"
-          @click="emit('close')"
-        >
+        <p class="text-base font-semibold text-[var(--ec-text)]">{{ title }}</p>
+        <button type="button" class="ec-icon-btn" @click="emit('close')">
           <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <path d="M18 6 6 18M6 6l12 12" />
           </svg>
@@ -52,30 +48,30 @@ function handleSave() {
           rows="4"
           :maxlength="maxLength ?? 200"
           placeholder="请输入群公告"
-          class="w-full resize-none rounded-md border border-[#E5E5E5] px-3 py-2 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
-        ></textarea>
+          class="ec-input resize-none"
+        />
         <input
           v-else
           v-model="input"
           type="text"
           :maxlength="maxLength ?? 30"
           placeholder="请输入群昵称"
-          class="w-full rounded-md border border-[#E5E5E5] px-3 py-2 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
+          :class="authInputClass"
           @keyup.enter="handleSave"
         />
       </div>
-      <div class="flex border-t border-[#F0F0F0]">
+      <div class="flex border-t border-[var(--ec-border)]">
         <button
           type="button"
-          class="flex-1 cursor-pointer py-3 text-sm text-[#1A1A1A] transition-colors hover:bg-[#F5F5F5]"
+          class="flex-1 cursor-pointer py-3 text-sm text-[var(--ec-text)] transition-colors duration-200 hover:bg-[var(--ec-bg-muted)]"
           @click="emit('close')"
         >
           取消
         </button>
-        <span class="w-px bg-[#F0F0F0]"></span>
+        <span class="w-px bg-[var(--ec-border)]" />
         <button
           type="button"
-          class="flex-1 cursor-pointer py-3 text-sm font-medium text-[#07C160] transition-colors hover:bg-[#F5F5F5]"
+          class="flex-1 cursor-pointer py-3 text-sm font-medium text-[var(--ec-primary)] transition-colors duration-200 hover:bg-[var(--ec-bg-muted)]"
           :disabled="!trimmed()"
           :class="{ 'cursor-not-allowed opacity-40': !trimmed() }"
           @click="handleSave"
@@ -86,5 +82,3 @@ function handleSave() {
     </div>
   </div>
 </template>
-
-<style scoped></style>

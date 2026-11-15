@@ -8,8 +8,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -26,6 +28,7 @@ import com.faust.easychat.entity.UserSettings;
 import com.faust.easychat.exception.AppException;
 import com.faust.easychat.mapper.UserMapper;
 import com.faust.easychat.mapper.UserSettingsMapper;
+import com.faust.easychat.service.TokenBlacklistService;
 import com.faust.easychat.service.UserService;
 import com.faust.easychat.util.CosUtil;
 import com.faust.easychat.util.EmailUtil;
@@ -47,6 +50,8 @@ public class UserServiceImpl implements UserService {
     private final EmailUtil emailUtil;
 
     private final BCryptPasswordEncoder passwordEncoder;
+
+    private final TokenBlacklistService tokenBlacklistService;
 
     private final StringRedisTemplate redisTemplate;
 
@@ -136,6 +141,7 @@ public class UserServiceImpl implements UserService {
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(user);
+        tokenBlacklistService.revokeUserTokens(id);
     }
 
     @Override
@@ -199,9 +205,21 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserBriefDTO> batchGetUsers(String ids) {
-        List<UserBriefDTO> dtos = new ArrayList<>();
-        for (String id : ids.split(",")) {
-            User user = userMapper.selectById(id);
+        if (ids == null || ids.isBlank()) {
+            return List.of();
+        }
+        List<String> idList = Arrays.stream(ids.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+        if (idList.isEmpty()) {
+            return List.of();
+        }
+        Map<String, User> userMap = userMapper.selectByIds(idList).stream()
+                .collect(Collectors.toMap(User::getId, u -> u, (x, y) -> x));
+        List<UserBriefDTO> dtos = new ArrayList<>(idList.size());
+        for (String id : idList) {
+            User user = userMap.get(id);
             if (user == null) {
                 throw AppException.userNotFound();
             }

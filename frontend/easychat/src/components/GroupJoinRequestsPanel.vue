@@ -9,11 +9,10 @@ import { ws } from '@/api/ws'
 import { formatTime } from '@/stores/chat'
 import { useToastStore } from '@/stores/toast'
 import type { GroupJoinRequestEvent, GroupJoinRequestHandledEvent } from '@/types/chat'
+import { ecAvatarStyle } from '@/utils/ec-ui'
 
 const props = defineProps<{
-  /** 仅查看某个群的申请；不传则显示全部 */
   conversationId?: string
-  /** 是否显示标题 */
   showTitle?: boolean
 }>()
 
@@ -86,10 +85,6 @@ onUnmounted(() => {
 
 defineExpose({ reload: load, count: () => requests.value.length, addRequest, removeRequest })
 
-function avatarStyle(avatar: string): Record<string, string> {
-  return { backgroundColor: avatar?.startsWith('#') ? avatar : '#07C160' }
-}
-
 function isImageAvatar(avatar: string): boolean {
   return !!avatar && !avatar.startsWith('#')
 }
@@ -108,48 +103,36 @@ async function handleAction(req: GroupJoinRequestItem, accept: boolean) {
 
 <template>
   <div>
-    <p v-if="showTitle !== false" class="mb-3 text-sm font-medium text-[#1A1A1A]">入群申请</p>
+    <p v-if="showTitle !== false" class="mb-3 text-sm font-semibold text-[var(--ec-text)]">入群申请</p>
 
-    <div v-if="loading" class="py-6 text-center text-sm text-[#B2B2B2]">加载中...</div>
+    <div v-if="loading" class="py-6 text-center text-sm text-[var(--ec-text-faint)]">加载中...</div>
     <div v-else-if="requests.length" class="space-y-3">
-      <div
-        v-for="r in requests"
-        :key="r.id"
-        class="flex items-center gap-3"
-      >
+      <div v-for="r in requests" :key="r.id" class="flex items-center gap-3">
         <div
-          class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[4px] text-sm font-medium text-white"
-          :style="avatarStyle(r.avatar)"
+          class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-medium text-white"
+          :style="ecAvatarStyle(r.avatar)"
         >
           <img v-if="isImageAvatar(r.avatar)" :src="r.avatar" class="h-full w-full object-cover" alt="头像" />
           <span v-else>{{ r.nickname.charAt(0) }}</span>
         </div>
         <div class="min-w-0 flex-1">
-          <p class="truncate text-sm text-[#1A1A1A]">
+          <p class="truncate text-sm text-[var(--ec-text)]">
             {{ r.nickname }}
-            <span v-if="!conversationId" class="text-[#8A8A8A]"> · {{ r.groupName }}</span>
+            <span v-if="!conversationId" class="text-[var(--ec-text-muted)]"> · {{ r.groupName }}</span>
           </p>
-          <p class="truncate text-xs text-[#8A8A8A]">{{ r.message || '申请加入群聊' }}</p>
+          <p class="truncate text-xs text-[var(--ec-text-muted)]">{{ r.message || '申请加入群聊' }}</p>
         </div>
-        <span class="shrink-0 text-xs text-[#B2B2B2]">{{ formatTime(r.createdAt) }}</span>
+        <span class="shrink-0 text-xs text-[var(--ec-text-faint)]">{{ formatTime(r.createdAt) }}</span>
         <div class="flex shrink-0 gap-2">
-          <button
-            type="button"
-            class="cursor-pointer rounded-md bg-[#07C160] px-3 py-1 text-xs text-white transition hover:bg-[#06ad56]"
-            @click="handleAction(r, true)"
-          >
+          <button type="button" class="ec-btn-primary px-3 py-1 text-xs" @click="handleAction(r, true)">
             同意
           </button>
-          <button
-            type="button"
-            class="cursor-pointer rounded-md border border-[#E5E5E5] px-3 py-1 text-xs text-[#8A8A8A] transition hover:bg-[#F5F5F5]"
-            @click="handleAction(r, false)"
-          >
+          <button type="button" class="ec-btn-secondary px-3 py-1 text-xs" @click="handleAction(r, false)">
             拒绝
           </button>
         </div>
       </div>
     </div>
-    <p v-else class="py-6 text-center text-sm text-[#B2B2B2]">暂无入群申请</p>
+    <p v-else class="py-6 text-center text-sm text-[var(--ec-text-faint)]">暂无入群申请</p>
   </div>
 </template>

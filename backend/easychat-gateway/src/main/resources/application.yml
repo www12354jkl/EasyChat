@@ -1,11 +1,6 @@
 server:
     port: 8080
 
-easychat:
-    ws:
-        # Netty WebSocket 独立端口，与 chat HTTP 服务同机部署
-        uri: http://127.0.0.1:8083
-
 spring:
     application:
         name: easychat-gateway
@@ -13,6 +8,12 @@ spring:
         active: ${SPRING_PROFILES_ACTIVE:local}
     main:
         web-application-type: reactive
+    data:
+        redis:
+            host: ${REDIS_HOST:localhost}
+            port: ${REDIS_PORT:6379}
+            database: 0
+            password: ${REDIS_PASSWORD:}
     cloud:
         nacos:
             discovery:
@@ -42,9 +43,25 @@ spring:
                           predicates:
                               - Path=/api/chat/**
                         - id: easychat-ws
-                          uri: ${easychat.ws.uri}
+                          uri: no://op
                           predicates:
                               - Path=/ws,/ws/**
+                          filters:
+                              - name: WsLoadBalancer
+                                args:
+                                    serviceId: easychat-chat-service
+                        - id: user-api-docs
+                          uri: lb://easychat-user-service
+                          predicates:
+                              - Path=/v3/api-docs/user
+                          filters:
+                              - SetPath=/v3/api-docs
+                        - id: chat-api-docs
+                          uri: lb://easychat-chat-service
+                          predicates:
+                              - Path=/v3/api-docs/chat
+                          filters:
+                              - SetPath=/v3/api-docs
         sentinel:
             transport:
                 dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
@@ -73,5 +90,25 @@ spring:
                         rule-type: gw-flow
 
 logging:
+    pattern:
+        level: "%5p [traceId=%X{traceId:-}]"
     level:
         org.springframework.cloud.gateway: INFO
+
+jwt:
+    secret: ${JWT_SECRET:change-me-in-production}
+
+springdoc:
+    api-docs:
+        enabled: false
+    swagger-ui:
+        enabled: false
+        disable-swagger-default-url: true
+        persist-authorization: true
+        try-it-out-enabled: true
+        urls-primary-name: user
+        urls:
+            - name: user
+              url: /v3/api-docs/user
+            - name: chat
+              url: /v3/api-docs/chat

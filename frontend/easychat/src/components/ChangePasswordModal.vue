@@ -4,6 +4,12 @@ import { resetPassword, sendResetCode } from '@/api/user'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { useEmailCode } from '@/composables/useEmailCode'
+import {
+  authAlertErrorClass,
+  authInputClass,
+  authPrimaryBtnClass,
+  authGhostBtnClass,
+} from '@/components/auth/auth-ui'
 
 const emit = defineEmits<{
   close: []
@@ -12,7 +18,6 @@ const emit = defineEmits<{
 const auth = useAuthStore()
 const toast = useToastStore()
 
-// 改密码发码走登录态接口 /api/user/send-reset-code（自定义 sendFn 覆盖默认）
 const { email, emailCode, sending, countdown, emailValid, errorMsg, sendCode } = useEmailCode(
   'forgot',
   () => sendResetCode(),
@@ -65,18 +70,16 @@ async function handleSubmit() {
 
 <template>
   <Teleport to="body">
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4" @click.self="emit('close')">
-      <div class="w-[380px] rounded-xl bg-white p-8 shadow-xl">
-        <h2 class="mb-6 text-center text-lg font-semibold text-[#1A1A1A]">修改密码</h2>
+    <div class="ec-modal-overlay" @click.self="emit('close')">
+      <div class="ec-modal-panel w-[380px] p-6">
+        <h2 class="mb-6 text-center text-lg font-semibold text-[var(--ec-text)]">修改密码</h2>
 
         <form class="space-y-4" @submit.prevent="handleSubmit">
-          <!-- 当前邮箱（只读） -->
-          <div class="flex items-center rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5">
-            <span class="w-16 shrink-0 text-xs text-gray-400">邮箱</span>
-            <span class="truncate text-sm text-gray-500">{{ email }}</span>
+          <div class="flex items-center rounded-[var(--ec-radius)] border border-[var(--ec-border)] bg-[var(--ec-bg-subtle)] px-3 py-2.5">
+            <span class="w-16 shrink-0 text-xs text-[var(--ec-text-faint)]">邮箱</span>
+            <span class="truncate text-sm text-[var(--ec-text-muted)]">{{ email }}</span>
           </div>
 
-          <!-- 邮箱验证码 -->
           <div class="flex gap-2">
             <input
               v-model="emailCode"
@@ -84,13 +87,13 @@ async function handleSubmit() {
               placeholder="邮箱验证码"
               maxlength="6"
               autocomplete="one-time-code"
-              class="w-full flex-1 rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
+              :class="authInputClass"
             />
             <button
               type="button"
               :disabled="countdown > 0 || sending || !emailValid"
+              :class="authGhostBtnClass + ' w-28 shrink-0 py-2.5'"
               @click="sendCode"
-              class="w-28 shrink-0 cursor-pointer rounded-md border border-[#07C160] py-2.5 text-sm text-[#07C160] transition hover:bg-[#07C160]/5 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400"
             >
               {{ sendBtnText }}
             </button>
@@ -101,41 +104,32 @@ async function handleSubmit() {
             type="password"
             placeholder="原密码"
             autocomplete="current-password"
-            class="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
+            :class="authInputClass"
           />
           <input
             v-model="newPassword"
             type="password"
             placeholder="新密码（8-20 位）"
             autocomplete="new-password"
-            class="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
+            :class="authInputClass"
           />
           <input
             v-model="confirmPassword"
             type="password"
             placeholder="确认新密码"
             autocomplete="new-password"
-            class="w-full rounded-md border border-gray-300 px-3 py-2.5 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
+            :class="authInputClass"
           />
 
-          <!-- 发送失败的错误提示 -->
-          <div v-if="errorMsg" class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-500">
+          <div v-if="errorMsg" :class="authAlertErrorClass">
             {{ errorMsg }}
           </div>
 
           <div class="flex gap-3 pt-2">
-            <button
-              type="button"
-              class="flex-1 cursor-pointer rounded-md border border-gray-300 py-2.5 text-sm text-gray-500 transition hover:bg-gray-50"
-              @click="emit('close')"
-            >
+            <button type="button" class="ec-btn-secondary flex-1 py-2.5" @click="emit('close')">
               取消
             </button>
-            <button
-              type="submit"
-              :disabled="submitting"
-              class="flex-1 cursor-pointer rounded-md bg-[#07C160] py-2.5 text-sm font-medium text-white transition hover:bg-[#06ad56] disabled:opacity-60"
-            >
+            <button type="submit" :disabled="submitting" :class="authPrimaryBtnClass + ' flex-1'">
               {{ submitting ? '提交中…' : '确认修改' }}
             </button>
           </div>
@@ -144,5 +138,3 @@ async function handleSubmit() {
     </div>
   </Teleport>
 </template>
-
-<style scoped></style>

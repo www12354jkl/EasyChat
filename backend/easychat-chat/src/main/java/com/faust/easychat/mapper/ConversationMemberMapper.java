@@ -115,6 +115,7 @@ public interface ConversationMemberMapper extends BaseMapper<ConversationMember>
                         <foreach collection="ids" item="cid" open="(" separator="," close=")">#{cid}</foreach>
                           AND msg.sender_id != #{userId}
                           AND msg.created_at > COALESCE(m.last_read_at, m.created_at)
+                          AND (m.cleared_at IS NULL OR msg.created_at > m.cleared_at)
                         GROUP BY m.conversation_id
                         </script>
                         """)
@@ -123,5 +124,9 @@ public interface ConversationMemberMapper extends BaseMapper<ConversationMember>
 
         @Update("UPDATE conversation_member SET last_read_at = #{now} WHERE conversation_id = #{conversationId} AND user_id = #{userId}")
         int markRead(@Param("conversationId") String conversationId, @Param("userId") String userId,
+                        @Param("now") LocalDateTime now);
+
+        @Update("UPDATE conversation_member SET cleared_at = #{now} WHERE conversation_id = #{conversationId} AND user_id = #{userId}")
+        int markCleared(@Param("conversationId") String conversationId, @Param("userId") String userId,
                         @Param("now") LocalDateTime now);
 }

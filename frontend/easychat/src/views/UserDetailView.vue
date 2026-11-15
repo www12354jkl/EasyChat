@@ -3,14 +3,16 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { deleteFriend, getUserDetail, type UserProfile } from '@/api/user'
 import { clearConversationMessages } from '@/api/chat'
+import { clearLocalMessages } from '@/utils/messageDb'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import { useToastStore } from '@/stores/toast'
+import { ecAvatarStyle } from '@/utils/ec-ui'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ChatHistoryModal from '@/components/ChatHistoryModal.vue'
 
 const props = defineProps<{ id?: string }>()
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; cleared: [conversationId: string] }>()
 
 const route = useRoute()
 const router = useRouter()
@@ -59,7 +61,17 @@ async function handleConfirm() {
   if (type === 'clear') {
     try {
       await clearConversationMessages(conversationId.value)
+      const uid = auth.user?.userId
+      if (uid) {
+        try {
+          await clearLocalMessages(uid, conversationId.value)
+        } catch {
+          // IndexedDB 不可用时忽略
+        }
+      }
       chatStore.updateConversation(conversationId.value, { lastMessage: '', lastTime: '' })
+      chatHistoryOpen.value = false
+      emit('cleared', conversationId.value)
       toast.success('聊天记录已清除')
     } catch (e) {
       toast.error((e as Error).message)
@@ -85,18 +97,17 @@ async function deleteFriendAction() {
 }
 
 function avatarStyle(): Record<string, string> {
-  return { backgroundColor: '#07C160' }
+  return ecAvatarStyle(profile.value?.avatar)
 }
 </script>
 
 <template>
-  <div class="flex h-full flex-col bg-[#F5F5F5]">
-    <!-- 顶部：标题 + 关闭 -->
-    <header class="flex h-[48px] shrink-0 items-center justify-between border-b border-[#E5E5E5] bg-white px-4">
-      <h1 class="truncate text-base font-medium text-[#1A1A1A]">个人信息</h1>
+  <div class="ec-page">
+    <header class="ec-page-header justify-between">
+      <h1 class="ec-page-title truncate">个人信息</h1>
       <button
         type="button"
-        class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-md text-[#8A8A8A] transition-colors hover:bg-[#F5F5F5] hover:text-[#1A1A1A]"
+        class="ec-icon-btn"
         title="关闭"
         @click="onBack"
       >
@@ -108,31 +119,31 @@ function avatarStyle(): Record<string, string> {
 
     <div class="flex-1 overflow-y-auto">
       <!-- 用户信息卡片 -->
-      <div class="bg-white px-4 py-5">
+      <div class="bg-[var(--ec-bg)] px-4 py-5">
         <div class="flex items-center gap-4">
           <div
-            class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[6px] text-xl font-medium text-white"
+            class="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full text-xl font-medium text-white"
             :style="avatarStyle()"
           >
             <img v-if="profile?.avatar" :src="profile.avatar" class="h-full w-full object-cover" alt="头像" />
             <span v-else>{{ profile?.nickname?.charAt(0) ?? '?' }}</span>
           </div>
           <div class="min-w-0">
-            <p class="truncate text-base font-medium text-[#1A1A1A]">{{ profile?.nickname }}</p>
-            <p class="mt-1 truncate text-xs text-[#8A8A8A]">{{ profile?.signature || '暂无签名' }}</p>
-            <p v-if="profile?.region" class="mt-0.5 truncate text-xs text-[#B2B2B2]">{{ profile.region }}</p>
+            <p class="truncate text-base font-medium text-[var(--ec-text)]">{{ profile?.nickname }}</p>
+            <p class="mt-1 truncate text-xs text-[var(--ec-text-muted)]">{{ profile?.signature || '暂无签名' }}</p>
+            <p v-if="profile?.region" class="mt-0.5 truncate text-xs text-[var(--ec-text-faint)]">{{ profile.region }}</p>
           </div>
         </div>
       </div>
 
       <!-- 操作 -->
-      <div class="mt-3 bg-white">
+      <div class="mt-3 bg-[var(--ec-bg)]">
         <!-- 聊天记录 -->
         <div class="flex items-center justify-between px-4 py-3">
-          <span class="text-sm text-[#1A1A1A]">聊天记录</span>
+          <span class="text-sm text-[var(--ec-text)]">聊天记录</span>
           <button
             type="button"
-            class="flex cursor-pointer items-center gap-1 text-sm text-[#8A8A8A] transition-colors hover:text-[#1A1A1A]"
+            class="flex cursor-pointer items-center gap-1 text-sm text-[var(--ec-text-muted)] transition-colors hover:text-[var(--ec-text)]"
             @click="openChatHistory"
           >
             查看
@@ -141,22 +152,22 @@ function avatarStyle(): Record<string, string> {
             </svg>
           </button>
         </div>
-        <div class="mx-4 border-t border-[#F0F0F0]"></div>
+        <div class="mx-4 border-t border-[var(--ec-border)]"></div>
 
         <!-- 删除聊天记录 -->
         <button
           type="button"
-          class="w-full cursor-pointer px-4 py-3 text-left text-sm text-[#FA5151] transition-colors hover:bg-[#FFF5F5]"
+          class="w-full cursor-pointer px-4 py-3 text-left text-sm text-[var(--ec-danger)] transition-colors duration-200 hover:bg-red-50"
           @click="confirmState = { type: 'clear' }"
         >
           删除聊天记录
         </button>
-        <div class="mx-4 border-t border-[#F0F0F0]"></div>
+        <div class="mx-4 border-t border-[var(--ec-border)]"></div>
 
         <!-- 删除好友 -->
         <button
           type="button"
-          class="w-full cursor-pointer px-4 py-3 text-left text-sm text-[#FA5151] transition-colors hover:bg-[#FFF5F5]"
+          class="w-full cursor-pointer px-4 py-3 text-left text-sm text-[var(--ec-danger)] transition-colors duration-200 hover:bg-red-50"
           @click="confirmState = { type: 'deleteFriend' }"
         >
           删除好友
@@ -168,7 +179,7 @@ function avatarStyle(): Record<string, string> {
     <ConfirmModal
       v-if="confirmState"
       :title="confirmState.type === 'clear' ? '删除聊天记录' : '删除好友'"
-      :message="confirmState.type === 'clear' ? '确定删除与该好友的聊天记录吗？此操作不可恢复。' : '删除后你们将不再是好友，且会移除相关聊天记录，确定删除吗？'"
+      :message="confirmState.type === 'clear' ? '确定删除与该好友的聊天记录吗？仅清除你本地可见的记录，对方不受影响。' : '删除后你们将不再是好友，且会移除相关聊天记录，确定删除吗？'"
       :confirm-text="confirmState.type === 'clear' ? '删除' : '删除好友'"
       danger
       @confirm="handleConfirm"

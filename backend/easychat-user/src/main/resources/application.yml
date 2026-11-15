@@ -16,6 +16,10 @@ spring:
             min-idle: 5
             max-active: 20
             max-wait: 60000
+    flyway:
+        enabled: true
+        baseline-on-migrate: true
+        locations: classpath:db/migration
     data:
         redis:
             host: ${REDIS_HOST:localhost}
@@ -72,13 +76,16 @@ jwt:
     secret: ${JWT_SECRET:change-me-in-production}
     access-expiration: 1800000
     refresh-expiration: 604800000
-    public-paths: /api/auth/login,/api/auth/register,/api/auth/token/refresh,/api/auth/send-verify-code,/api/auth/forget-password,/api/internal,/swagger-ui,/v3/api-docs
+    public-paths: /api/auth/login,/api/auth/register,/api/auth/token/refresh,/api/auth/send-verify-code,/api/auth/forget-password,/swagger-ui,/v3/api-docs
 
 springdoc:
     api-docs:
         enabled: false
     swagger-ui:
         enabled: false
+        persist-authorization: true
+        disable-swagger-default-url: true
+        try-it-out-enabled: true
 
 tencent:
   cos:
@@ -88,9 +95,34 @@ tencent:
     bucket: ${TENCENT_COS_BUCKET:}
     url-prefix: ${TENCENT_COS_URL_PREFIX:}
 
+logging:
+    pattern:
+        level: "%5p [traceId=%X{traceId:-}]"
+    level:
+        org.flywaydb: INFO
+        org.springframework.boot.flyway: INFO
+
 ratelimit:
     enabled: true
 
-feign:
-    sentinel:
-        enabled: true
+dubbo:
+    application:
+        name: ${spring.application.name}
+        qos-enable: false
+        serialize-check-status: WARN
+        # 应用级注册会用 Dubbo 端口占用同名 Nacos 服务，网关会把 HTTP 转到 20880
+        register-mode: interface
+        service-discovery:
+            migration: FORCE_INTERFACE
+    registry:
+        address: nacos://${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:}
+    protocol:
+        name: dubbo
+        # 127.0.0.1 会被 Dubbo 换成任意网卡。本机多网卡时在 application-local.yml 写成固定 IP
+        host: ${DUBBO_HOST:127.0.0.1}
+        port: 20880
+    consumer:
+        check: false
+        timeout: 5000

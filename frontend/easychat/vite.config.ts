@@ -1,34 +1,63 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
+import electron from 'vite-plugin-electron/simple'
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [
-    vue(),
-    vueDevTools(),
-    tailwindcss(),
-  ],
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
-  },
-  server: {
-    proxy: {
-      // 统一走 API 网关 (8080)，由网关按路径转发到各微服务
-      '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
+export default defineConfig(({ mode, command }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const isElectron = mode === 'electron' || env.VITE_ELECTRON === 'true'
+  const isDevServer = command === 'serve'
+
+  return {
+    base: isElectron ? './' : '/',
+    plugins: [
+      vue(),
+      tailwindcss(),
+      !isElectron && vueDevTools(),
+      isElectron &&
+        electron({
+          main: {
+            entry: 'electron/main.ts',
+          },
+          preload: {
+            input: 'electron/preload.ts',
+            vite: {
+              build: {
+                rollupOptions: {
+                  output: {
+                    format: 'cjs',
+                    entryFileNames: 'preload.cjs',
+                    inlineDynamicImports: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
+    ].filter(Boolean),
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
-      '/ws': {
-        target: 'http://localhost:8080',
-        changeOrigin: true,
-        ws: true,
-      },
     },
-  },
+    server: {
+      proxy: isDevServer
+        ? {
+            '/api': {
+              target: 'http://localhost:8080',
+              changeOrigin: true,
+            },
+            '/ws': {
+              target: 'http://localhost:8080',
+              changeOrigin: true,
+              ws: true,
+            },
+          }
+        : undefined,
+    },
+  }
 })

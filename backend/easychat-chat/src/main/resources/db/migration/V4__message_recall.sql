@@ -1,0 +1,2 @@
+ALTER TABLE message
+    ADD COLUMN status TINYINT NOT NULL DEFAULT 1 COMMENT '1正常 2已撤回' AFTER content;

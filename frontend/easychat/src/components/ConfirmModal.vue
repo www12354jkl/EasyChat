@@ -4,7 +4,6 @@ defineProps<{
   message: string
   confirmText?: string
   cancelText?: string
-  /** 红色危险样式（删除/退出类操作） */
   danger?: boolean
 }>()
 
@@ -15,25 +14,25 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="emit('cancel')">
-    <div class="w-[300px] overflow-hidden rounded-lg bg-white shadow-xl">
+  <div class="ec-modal-overlay" @click.self="emit('cancel')">
+    <div class="ec-modal-panel w-[300px]">
       <div class="px-5 pb-2 pt-5 text-center">
-        <p class="text-base font-medium text-[#1A1A1A]">{{ title }}</p>
-        <p class="mt-2 text-sm leading-relaxed text-[#5A5A5A]">{{ message }}</p>
+        <p class="text-base font-semibold text-[var(--ec-text)]">{{ title }}</p>
+        <p class="mt-2 text-sm leading-relaxed text-[var(--ec-text-muted)]">{{ message }}</p>
       </div>
-      <div class="mt-4 flex border-t border-[#F0F0F0]">
+      <div class="mt-4 flex border-t border-[var(--ec-border)]">
         <button
           type="button"
-          class="flex-1 cursor-pointer py-3 text-sm text-[#1A1A1A] transition-colors hover:bg-[#F5F5F5]"
+          class="flex-1 cursor-pointer py-3 text-sm text-[var(--ec-text)] transition-colors duration-200 hover:bg-[var(--ec-bg-muted)]"
           @click="emit('cancel')"
         >
           {{ cancelText ?? '取消' }}
         </button>
-        <span class="w-px bg-[#F0F0F0]"></span>
+        <span class="w-px bg-[var(--ec-border)]" />
         <button
           type="button"
-          class="flex-1 cursor-pointer py-3 text-sm font-medium transition-colors hover:bg-[#F5F5F5]"
-          :class="danger ? 'text-[#FA5151]' : 'text-[#07C160]'"
+          class="flex-1 cursor-pointer py-3 text-sm font-medium transition-colors duration-200 hover:bg-[var(--ec-bg-muted)]"
+          :class="danger ? 'text-[var(--ec-danger)]' : 'text-[var(--ec-primary)]'"
           @click="emit('confirm')"
         >
           {{ confirmText ?? '确定' }}
@@ -42,5 +41,3 @@ const emit = defineEmits<{
     </div>
   </div>
 </template>
-
-<style scoped></style>

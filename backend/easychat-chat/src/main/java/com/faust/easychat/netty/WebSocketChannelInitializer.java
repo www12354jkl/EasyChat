@@ -3,7 +3,8 @@ package com.faust.easychat.netty;
 
 import org.springframework.stereotype.Component;
 
-import com.faust.easychat.util.JwtUtil;
+import com.faust.easychat.service.WsTicketService;
+import com.faust.easychat.ws.WsSessionRegistry;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
@@ -18,11 +19,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class WebSocketChannelInitializer extends ChannelInitializer<SocketChannel> {
 
-    private final JwtUtil jwtUtil;
+    private final WsTicketService wsTicketService;
 
     private final WsSessionManager sessionManager;
 
     private final WsMessageSender wsMessageSender;
+    private final WsSessionRegistry sessionRegistry;
 
     @Override
     protected void initChannel(SocketChannel ch) {
@@ -30,9 +32,9 @@ public class WebSocketChannelInitializer extends ChannelInitializer<SocketChanne
             .addLast(new HttpServerCodec())
             .addLast(new ChunkedWriteHandler())
             .addLast(new HttpObjectAggregator(65536))
-            .addLast(new AuthWsHandler(jwtUtil, sessionManager))
+            .addLast(new AuthWsHandler(wsTicketService, sessionManager))
             .addLast(new WebSocketServerProtocolHandler("/ws", true))
-            .addLast(new ChatWsHandler(wsMessageSender));
+            .addLast(new ChatWsHandler(wsMessageSender, sessionRegistry));
     }
 
 }

@@ -4,22 +4,34 @@ import LoginForm from '@/components/auth/LoginForm.vue'
 import RegisterForm from '@/components/auth/RegisterForm.vue'
 import ForgetPasswordForm from '@/components/auth/ForgetPasswordForm.vue'
 import { useToastStore } from '@/stores/toast'
+import { IS_ELECTRON } from '@/config/env'
 
 const toast = useToastStore()
 
 const mode = ref<'login' | 'register' | 'forgot'>('login')
 const notice = ref('')
 
-// 前进（登录→注册/忘记密码）用 panel-next，后退用 panel-prev
 const transitionName = computed(() => (mode.value === 'login' ? 'panel-prev' : 'panel-next'))
+
+const pageTitle = computed(() => {
+  switch (mode.value) {
+    case 'login':
+      return '登录 EasyChat'
+    case 'register':
+      return '注册账号'
+    case 'forgot':
+      return '找回密码'
+  }
+})
+
 const subtitle = computed(() => {
   switch (mode.value) {
     case 'login':
-      return '登录你的账号，和朋友保持联系'
+      return '简洁、安静地和朋友保持联系'
     case 'register':
-      return '注册新账号，开启聊天'
+      return '几步完成，即可开始聊天'
     case 'forgot':
-      return '重置密码，找回你的账号'
+      return '通过邮箱验证重置密码'
   }
 })
 
@@ -40,77 +52,146 @@ function onResetSuccess() {
 </script>
 
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-[#f2f2f2] px-4">
-    <div class="w-[400px] rounded-xl bg-white px-10 py-12 shadow-lg">
-      <!-- logo + 标题 -->
-      <div class="mb-8 flex flex-col items-center gap-3">
-        <div class="flex h-16 w-16 items-center justify-center rounded-xl bg-[#07C160]">
-          <!-- 聊天气泡 icon -->
-          <svg class="h-9 w-9 text-white" viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 3C6.5 3 2 6.9 2 11.7c0 2.6 1.3 5 3.5 6.6L4.6 21l3.3-1.7c1.3.4 2.7.6 4.1.6 5.5 0 10-3.9 10-8.7S17.5 3 12 3z"
-            />
-          </svg>
+  <div
+    class="auth-shell flex bg-[var(--ec-bg-subtle)]"
+    :class="IS_ELECTRON ? 'h-full' : 'min-h-[100dvh]'"
+  >
+    <!-- 左侧品牌区（Web 宽屏） -->
+    <aside
+      v-if="!IS_ELECTRON"
+      class="hidden w-[42%] min-w-[320px] flex-col justify-between border-r border-[var(--ec-border)] bg-[var(--ec-bg)] p-12 lg:flex"
+    >
+      <div>
+        <div class="mb-8 flex items-center gap-3">
+          <div
+            class="flex h-11 w-11 items-center justify-center rounded-[var(--ec-radius)] bg-[var(--ec-primary)] text-white"
+          >
+            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M12 3C6.5 3 2 6.9 2 11.7c0 2.6 1.3 5 3.5 6.6L4.6 21l3.3-1.7c1.3.4 2.7.6 4.1.6 5.5 0 10-3.9 10-8.7S17.5 3 12 3z"
+              />
+            </svg>
+          </div>
+          <span class="text-lg font-semibold tracking-tight text-[var(--ec-text)]">EasyChat</span>
         </div>
-        <h1 class="text-2xl font-semibold text-gray-800">EasyChat</h1>
-        <p class="text-sm text-gray-400">{{ subtitle }}</p>
+        <h2 class="max-w-xs text-3xl font-semibold leading-snug tracking-tight text-[var(--ec-text)]">
+          轻量桌面聊天，<br />专注对话本身
+        </h2>
+        <p class="mt-4 max-w-sm text-sm leading-relaxed text-[var(--ec-text-muted)]">
+          白与绿的界面，少干扰、多留白。适合日常沟通，也适合长时间挂在桌面使用。
+        </p>
       </div>
+      <p class="text-xs text-[var(--ec-text-faint)]">端到端加密传输 · 简洁可靠</p>
+    </aside>
 
-      <!-- 表单切换区域 -->
-      <div class="min-h-[430px] overflow-hidden">
-        <Transition :name="transitionName" mode="out-in">
-          <LoginForm
-            v-if="mode === 'login'"
-            key="login"
-            :notice="notice"
-            @switch-to-register="switchTo('register')"
-            @switch-to-forgot="switchTo('forgot')"
-          />
-          <RegisterForm
-            v-else-if="mode === 'register'"
-            key="register"
-            @switch-to-login="switchTo('login')"
-            @registered="onRegistered"
-          />
-          <ForgetPasswordForm
-            v-else
-            key="forgot"
-            @switch-to-login="switchTo('login')"
-            @reset-success="onResetSuccess"
-          />
-        </Transition>
+    <!-- 表单区 -->
+    <div
+      class="flex flex-1 flex-col"
+      :class="
+        IS_ELECTRON
+          ? 'px-6 pb-8 pt-5'
+          : 'items-center justify-center px-4 py-10'
+      "
+    >
+      <div
+        class="w-full"
+        :class="IS_ELECTRON ? 'flex flex-1 flex-col' : 'max-w-[380px]'"
+      >
+        <header class="mb-6" :class="IS_ELECTRON ? 'text-center' : ''">
+          <div
+            v-if="IS_ELECTRON"
+            class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-[var(--ec-radius)] bg-[var(--ec-primary)] text-white"
+          >
+            <svg class="h-7 w-7" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M12 3C6.5 3 2 6.9 2 11.7c0 2.6 1.3 5 3.5 6.6L4.6 21l3.3-1.7c1.3.4 2.7.6 4.1.6 5.5 0 10-3.9 10-8.7S17.5 3 12 3z"
+              />
+            </svg>
+          </div>
+          <h1 class="text-2xl font-semibold tracking-tight text-[var(--ec-text)]">
+            {{ pageTitle }}
+          </h1>
+          <p class="mt-2 text-sm text-[var(--ec-text-muted)]">
+            {{ subtitle }}
+          </p>
+        </header>
+
+        <div
+          class="auth-card rounded-2xl border border-[var(--ec-border)] bg-[var(--ec-bg)] p-5 shadow-[0_1px_2px_rgba(26,46,36,0.04)]"
+          :class="IS_ELECTRON ? 'flex-1 overflow-y-auto' : ''"
+        >
+          <Transition :name="transitionName" mode="out-in">
+            <LoginForm
+              v-if="mode === 'login'"
+              key="login"
+              :notice="notice"
+              @switch-to-register="switchTo('register')"
+              @switch-to-forgot="switchTo('forgot')"
+            />
+            <RegisterForm
+              v-else-if="mode === 'register'"
+              key="register"
+              @switch-to-login="switchTo('login')"
+              @registered="onRegistered"
+            />
+            <ForgetPasswordForm
+              v-else
+              key="forgot"
+              @switch-to-login="switchTo('login')"
+              @reset-success="onResetSuccess"
+            />
+          </Transition>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* 前进：登录 → 注册/忘记密码（内容向左滑） */
+.auth-card {
+  animation: auth-enter 0.35s ease both;
+}
+
+@keyframes auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .panel-next-enter-active,
 .panel-next-leave-active,
 .panel-prev-enter-active,
 .panel-prev-leave-active {
-  transition:
-    opacity 0.25s ease,
-    transform 0.25s ease;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.panel-next-leave-to {
-  opacity: 0;
-  transform: translateX(-32px);
-}
+.panel-next-leave-to,
 .panel-next-enter-from {
   opacity: 0;
-  transform: translateX(32px);
+  transform: translateX(12px);
 }
 
-/* 后退：注册/忘记密码 → 登录（内容向右滑） */
-.panel-prev-leave-to {
-  opacity: 0;
-  transform: translateX(32px);
-}
+.panel-prev-leave-to,
 .panel-prev-enter-from {
   opacity: 0;
-  transform: translateX(-32px);
+  transform: translateX(-12px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-card {
+    animation: none;
+  }
+
+  .panel-next-leave-to,
+  .panel-next-enter-from,
+  .panel-prev-leave-to,
+  .panel-prev-enter-from {
+    transform: none;
+  }
 }
 </style>

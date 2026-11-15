@@ -1,4 +1,4 @@
-import { request } from './request'
+import { request, ApiError } from './request'
 
 export interface CreateGroupParams {
   name: string
@@ -33,7 +33,7 @@ export interface GroupBrief {
   total: number
 }
 
-import type { ChatMessage, GroupDetail } from '@/types/chat'
+import type { GroupDetail } from '@/types/chat'
 
 export function createGroup(params: CreateGroupParams): Promise<GroupInfo> {
   return request<GroupInfo>('/api/chat/group', { method: 'POST', body: params })
@@ -77,7 +77,7 @@ export function kickGroupMember(groupId: string, userId: string): Promise<void> 
   return request<void>(`/api/chat/group/${groupId}/member/${userId}`, { method: 'DELETE' })
 }
 
-/** 清空会话聊天记录（后端 DELETE /api/chat/conversation/{id}/messages） */
+/** 清空会话聊天记录（仅自己可见，后端只更新 cleared_at） */
 export function clearConversationMessages(conversationId: string): Promise<void> {
   return request<void>(`/api/chat/conversation/${conversationId}/messages`, {
     method: 'DELETE',
@@ -93,8 +93,10 @@ export interface MessageRecord {
   senderId: string
   senderName?: string | null
   senderAvatar?: string | null
-  contentType?: number
+  contentType?: number | null
   content: string
+  /** 1=正常 2=已撤回 */
+  status?: number | null
   createdAt?: string | null
 }
 
@@ -121,13 +123,27 @@ export async function getMessagePage(
   return request<MessagePage>(`/api/chat/messages?${params.toString()}`)
 }
 
-/** 发送消息（后端 POST /api/chat/message） */
-export function sendMessage(params: {
+/** 发送消息（后端 POST /api/chat/message）。网络失败时用同一个 clientMsgId 再试一次，避免插出两条 */
+export async function sendMessage(params: {
   conversationId: string
   content: string
   contentType?: number
-}): Promise<ChatMessage> {
-  return request<ChatMessage>('/api/chat/message', { method: 'POST', body: params })
+  clientMsgId?: string
+}): Promise<MessageRecord> {
+  const body = { ...params, clientMsgId: params.clientMsgId ?? crypto.randomUUID() }
+  try {
+    return await request<MessageRecord>('/api/chat/message', { method: 'POST', body })
+  } catch (e) {
+    if (e instanceof ApiError && e.message === '网络连接失败，请检查网络') {
+      return request<MessageRecord>('/api/chat/message', { method: 'POST', body })
+    }
+    throw e
+  }
+}
+
+/** 撤回消息（后端 POST /api/chat/message/{id}/recall，2 分钟内且仅自己发送） */
+export function recallMessage(messageId: string): Promise<MessageRecord> {
+  return request<MessageRecord>(`/api/chat/message/${messageId}/recall`, { method: 'POST' })
 }
 
 /** 上传聊天图片/文件，返回 COS URL（后端 POST /api/chat/upload，multipart） */

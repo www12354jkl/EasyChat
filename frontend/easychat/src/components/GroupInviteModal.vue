@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { acceptGroupInvite, declineGroupInvite } from '@/api/chat'
 import { useToastStore } from '@/stores/toast'
 import type { GroupInviteInfo } from '@/types/chat'
+import { ecAvatarStyle } from '@/utils/ec-ui'
 
 const props = defineProps<{
   invite: GroupInviteInfo
@@ -27,10 +28,6 @@ const isExpired = computed(
 
 function isImageAvatar(url?: string) {
   return !!url && !url.startsWith('#')
-}
-
-function avatarStyle(url?: string): Record<string, string> {
-  return { backgroundColor: url?.startsWith('#') ? url : '#07C160' }
 }
 
 async function submitJoin() {
@@ -74,12 +71,12 @@ async function submitDecline() {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="emit('close')">
-    <div class="w-[400px] max-w-full overflow-hidden rounded-lg bg-white shadow-xl">
+  <div class="ec-modal-overlay" @click.self="emit('close')">
+    <div class="ec-modal-panel w-[400px] max-w-full">
       <div class="flex flex-col items-center px-6 pb-4 pt-8">
         <div
-          class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[4px] text-xl font-medium text-white"
-          :style="avatarStyle(invite.avatar)"
+          class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full text-xl font-medium text-white"
+          :style="ecAvatarStyle(invite.avatar)"
         >
           <img
             v-if="isImageAvatar(invite.avatar)"
@@ -89,41 +86,41 @@ async function submitDecline() {
           />
           <span v-else>群</span>
         </div>
-        <h2 class="mt-4 text-lg font-medium text-[#1A1A1A]">{{ invite.name }}</h2>
-        <p v-if="invite.inviterName" class="mt-2 text-sm text-[#8A8A8A]">
+        <h2 class="mt-4 text-lg font-semibold text-[var(--ec-text)]">{{ invite.name }}</h2>
+        <p v-if="invite.inviterName" class="mt-2 text-sm text-[var(--ec-text-muted)]">
           {{ invite.inviterName }} 邀请你加入群聊
         </p>
-        <p v-if="isWaiting" class="mt-3 text-sm text-[#576B95]">已提交验证信息，等待管理员审批</p>
-        <p v-else-if="isExpired" class="mt-3 text-sm text-[#B2B2B2]">该邀请已失效</p>
+        <p v-if="isWaiting" class="mt-3 text-sm text-[var(--ec-primary)]">已提交验证信息，等待管理员审批</p>
+        <p v-else-if="isExpired" class="mt-3 text-sm text-[var(--ec-text-faint)]">该邀请已失效</p>
       </div>
 
       <div v-if="!isWaiting && !isExpired && needVerify" class="px-6 pb-4">
-        <label class="mb-2 block text-sm text-[#1A1A1A]">验证信息</label>
+        <label class="mb-2 block text-sm font-medium text-[var(--ec-text)]">验证信息</label>
         <textarea
           v-model="message"
           rows="3"
           maxlength="100"
           placeholder="介绍一下自己，或说明入群原因"
-          class="w-full resize-none rounded-md border border-[#E5E5E5] px-3 py-2 text-sm outline-none transition focus:border-[#07C160] focus:ring-2 focus:ring-[#07C160]/20"
+          class="ec-input resize-none"
         />
-        <p class="mt-1 text-right text-xs text-[#B2B2B2]">{{ message.length }}/100</p>
+        <p class="mt-1 text-right text-xs text-[var(--ec-text-faint)]">{{ message.length }}/100</p>
       </div>
 
-      <div class="flex border-t border-[#F0F0F0]">
+      <div class="flex border-t border-[var(--ec-border)]">
         <button
           v-if="!isWaiting && !isExpired"
           type="button"
-          class="flex-1 cursor-pointer py-3 text-sm text-[#8A8A8A] transition-colors hover:bg-[#F5F5F5] disabled:cursor-not-allowed disabled:opacity-50"
+          class="flex-1 cursor-pointer py-3 text-sm text-[var(--ec-text-muted)] transition-colors duration-200 hover:bg-[var(--ec-bg-muted)] disabled:cursor-not-allowed disabled:opacity-50"
           :disabled="submitting"
           @click="submitDecline"
         >
           忽略
         </button>
-        <span v-if="!isWaiting && !isExpired" class="w-px bg-[#F0F0F0]"></span>
+        <span v-if="!isWaiting && !isExpired" class="w-px bg-[var(--ec-border)]" />
         <button
           type="button"
-          class="flex-1 cursor-pointer py-3 text-sm font-medium transition-colors hover:bg-[#F5F5F5] disabled:cursor-not-allowed disabled:opacity-50"
-          :class="isWaiting || isExpired ? 'text-[#8A8A8A]' : 'text-[#07C160]'"
+          class="flex-1 cursor-pointer py-3 text-sm font-medium transition-colors duration-200 hover:bg-[var(--ec-bg-muted)] disabled:cursor-not-allowed disabled:opacity-50"
+          :class="isWaiting || isExpired ? 'text-[var(--ec-text-faint)]' : 'text-[var(--ec-primary)]'"
           :disabled="submitting || isWaiting || isExpired"
           @click="isWaiting || isExpired ? emit('close') : submitJoin()"
         >

@@ -107,7 +107,7 @@ watch(
   <div class="flex flex-1 gap-2">
     <select
       v-model="countryIdx"
-      class="min-w-0 flex-1 rounded-md border border-[#E5E5E5] bg-white px-2 py-2 text-sm outline-none transition focus:border-[#07C160]"
+      class="min-w-0 flex-1 rounded-[var(--ec-radius)] border border-[var(--ec-border)] bg-[var(--ec-bg)] px-2 py-2 text-sm text-[var(--ec-text)] outline-none transition-[border-color] duration-200 focus:border-[var(--ec-primary)]"
       @change="onCountryChange"
     >
       <option :value="-1" disabled>国家/地区</option>
@@ -119,7 +119,7 @@ watch(
     <select
       v-if="stations.length"
       v-model="stationIdx"
-      class="min-w-0 flex-1 rounded-md border border-[#E5E5E5] bg-white px-2 py-2 text-sm outline-none transition focus:border-[#07C160]"
+      class="min-w-0 flex-1 rounded-[var(--ec-radius)] border border-[var(--ec-border)] bg-[var(--ec-bg)] px-2 py-2 text-sm text-[var(--ec-text)] outline-none transition-[border-color] duration-200 focus:border-[var(--ec-primary)]"
       @change="onStationChange"
     >
       <option :value="-1" disabled>省份/州</option>
@@ -131,7 +131,7 @@ watch(
     <select
       v-if="cities.length"
       v-model="cityIdx"
-      class="min-w-0 flex-1 rounded-md border border-[#E5E5E5] bg-white px-2 py-2 text-sm outline-none transition focus:border-[#07C160]"
+      class="min-w-0 flex-1 rounded-[var(--ec-radius)] border border-[var(--ec-border)] bg-[var(--ec-bg)] px-2 py-2 text-sm text-[var(--ec-text)] outline-none transition-[border-color] duration-200 focus:border-[var(--ec-primary)]"
       @change="emitValue"
     >
       <option :value="-1" disabled>城市</option>

@@ -3,6 +3,7 @@ package com.faust.easychat.service.impl;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -10,18 +11,22 @@ import org.springframework.transaction.annotation.Transactional;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 
 import com.faust.easychat.dto.user.AuthResponse;
 import com.faust.easychat.dto.user.ForgetPasswordRequest;
 import com.faust.easychat.dto.user.LoginRequest;
 import com.faust.easychat.dto.user.RegisterRequest;
+import com.faust.easychat.dto.user.TokenRefreshResponse;
 import com.faust.easychat.entity.User;
 import com.faust.easychat.entity.UserSettings;
 import com.faust.easychat.mapper.AuthMapper;
 import com.faust.easychat.mapper.UserSettingsMapper;
 import com.faust.easychat.service.AuthService;
+import com.faust.easychat.service.TokenBlacklistService;
 import com.faust.easychat.util.EmailUtil;
 import com.faust.easychat.util.JwtUtil;
+import com.faust.easychat.util.TokenUtils;
 import com.faust.easychat.exception.AppException;
 
 import lombok.RequiredArgsConstructor;
@@ -41,6 +46,8 @@ public class AuthServiceImpl implements AuthService {
     private final EmailUtil emailUtil;
 
     private final StringRedisTemplate redisTemplate;
+
+    private final TokenBlacklistService tokenBlacklistService;
 
     private final BCryptPasswordEncoder passwordEncoder;
 
@@ -122,6 +129,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPassword(encodedPassword);
         user.setUpdatedAt(LocalDateTime.now());
         authMapper.updateById(user);
+        tokenBlacklistService.revokeUserTokens(user.getId());
     }
     
     private AuthResponse buildAuthResponse(User user) {
@@ -142,35 +150,67 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void logout(String authHeader) {
-        String token = authHeader.substring(7);
+    public void logout(String authHeader, String refreshToken) {
+        String accessToken = TokenUtils.extractBearerToken(authHeader);
+        if (accessToken != null) {
+            blacklistToken(accessToken);
+        }
+        String normalizedRefreshToken = TokenUtils.normalizeToken(refreshToken);
+        if (normalizedRefreshToken != null) {
+            blacklistToken(normalizedRefreshToken);
+        }
+    }
+
+    private void blacklistToken(String token) {
         try {
             long remaining = jwtUtil.getTokenRemainingMs(token);
-            if (remaining > 0) {
-                redisTemplate.opsForValue().set("token:blacklist:" + token, "1", remaining, TimeUnit.MILLISECONDS);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
+            tokenBlacklistService.blacklist(token, remaining);
+        } catch (ExpiredJwtException e) {
+            log.debug("Token already expired, skipping blacklist", e);
+        } catch (JwtException | IllegalArgumentException e) {
+            log.warn("Invalid token cannot be blacklisted: {}", e.getMessage());
+            throw AppException.tokenInvalid();
         }
     }
 
     @Override
-    public String refreshAccessToken(String refreshToken) {
-        if (Boolean.TRUE.equals(redisTemplate.hasKey("token:blacklist:" + refreshToken))) {
+    public TokenRefreshResponse refreshAccessToken(String refreshToken) {
+        String normalizedRefreshToken = TokenUtils.normalizeToken(refreshToken);
+        if (normalizedRefreshToken == null) {
+            log.warn("refresh rejected: empty token");
+            throw AppException.tokenInvalid();
+        }
+        if (tokenBlacklistService.isBlacklisted(normalizedRefreshToken)) {
+            log.warn("refresh rejected: blacklisted");
             throw AppException.tokenInvalid();
         }
         try {
-            Claims claims = jwtUtil.parseToken(refreshToken);
+            Claims claims = jwtUtil.parseToken(normalizedRefreshToken);
             if (!jwtUtil.isRefreshToken(claims)) {
+                log.warn("refresh rejected: type={}", claims.get("type"));
                 throw AppException.tokenInvalid();
             }
-            // 换新 accessToken；refreshToken 无状态不轮换，继续有效
-            return jwtUtil.generateAccessToken(claims.getSubject());
-        } catch (AppException e) {
+            if (tokenBlacklistService.isRevokedByPasswordChange(claims.getSubject(), claims.getIssuedAt())) {
+                log.warn("refresh rejected: revoked by password change");
+                throw AppException.tokenInvalid();
+            }
+            String userId = claims.getSubject();
+            if (userId == null || userId.isBlank()) {
+                log.warn("refresh rejected: blank subject");
+                throw AppException.tokenInvalid();
+            }
+            TokenRefreshResponse response = new TokenRefreshResponse();
+            response.setAccessToken(jwtUtil.generateAccessToken(userId));
+            response.setRefreshToken(jwtUtil.generateRefreshToken(userId));
+            // 旧 refreshToken 立即作废。响应若丢失，客户端只能重新登录
+            blacklistToken(normalizedRefreshToken);
+            return response;
+        } catch (AppException | DataAccessException e) {
             throw e;
         } catch (ExpiredJwtException e) {
             throw AppException.tokenExpired();
         } catch (Exception e) {
+            log.warn("refresh failed: {}", e.toString());
             throw AppException.tokenInvalid();
         }
     }
