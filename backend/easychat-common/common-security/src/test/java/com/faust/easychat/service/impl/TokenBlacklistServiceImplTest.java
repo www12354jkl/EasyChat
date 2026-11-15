@@ -2,6 +2,7 @@ package com.faust.easychat.service.impl;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -70,5 +71,39 @@ class TokenBlacklistServiceImplTest {
         assertTrue(tokenBlacklistService.isRevokedByPasswordChange("user-1", new Date(1700000000000L)));
         assertTrue(tokenBlacklistService.isRevokedByPasswordChange("user-1", new Date(1699999999999L)));
         assertFalse(tokenBlacklistService.isRevokedByPasswordChange("user-1", new Date(1700000000001L)));
+    }
+
+    @Test
+    void blacklist_nullOrBlankToken_skipsRedis() {
+        tokenBlacklistService.blacklist(null, 60_000);
+        tokenBlacklistService.blacklist("", 60_000);
+        tokenBlacklistService.blacklist("   ", 60_000);
+
+        verify(redisTemplate, never()).opsForValue();
+    }
+
+    @Test
+    void blacklist_trimsTokenBeforeWritingRedis() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+
+        tokenBlacklistService.blacklist("  access-token  ", 60_000);
+
+        verify(valueOps).set(eq("token:blacklist:access-token"), eq("1"), eq(60_000L), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void isBlacklisted_nullOrBlankToken_returnsFalseWithoutCallingRedis() {
+        assertFalse(tokenBlacklistService.isBlacklisted(null));
+        assertFalse(tokenBlacklistService.isBlacklisted(""));
+        assertFalse(tokenBlacklistService.isBlacklisted("   "));
+
+        verify(redisTemplate, never()).hasKey(anyString());
+    }
+
+    @Test
+    void isBlacklisted_trimsTokenBeforeCheckingRedis() {
+        when(redisTemplate.hasKey("token:blacklist:access-token")).thenReturn(true);
+
+        assertTrue(tokenBlacklistService.isBlacklisted("  access-token  "));
     }
 }

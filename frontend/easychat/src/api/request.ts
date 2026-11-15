@@ -12,9 +12,32 @@ export class ApiError extends Error {
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  /** 请求体；传函数时每次发送（含 401 刷新后重放）都会重新求值 */
   body?: unknown
   /** 是否携带 Authorization header，默认 true */
   auth?: boolean
+  /** 401 自动刷新失败时是否自动清理会话并跳转登录页，默认 true */
+  forceLogoutOnRefreshFail?: boolean
+}
+
+interface ApiResponseBody<T> {
+  code?: number
+  message?: string
+  data?: T
+}
+
+async function fetchJson<T>(
+  url: string,
+  init: RequestInit,
+): Promise<{ res: Response; result: ApiResponseBody<T> | null }> {
+  let res: Response
+  try {
+    res = await fetch(url, init)
+  } catch {
+    throw new ApiError('网络连接失败，请检查网络')
+  }
+  const result = (await res.json().catch(() => null)) as ApiResponseBody<T> | null
+  return { res, result }
 }
 
 // ============ 401 自动刷新（单飞） ============
@@ -25,22 +48,28 @@ let refreshing: Promise<string> | null = null
 /** 调后端 refresh 接口换新 accessToken（不走 request 封装，避免循环触发 401） */
 async function doRefresh(): Promise<string> {
   const auth = useAuthStore()
-  if (!auth.refreshToken) {
+  const startingRefreshToken = auth.refreshToken
+  if (!startingRefreshToken) {
     throw new ApiError('未登录', 401)
   }
   // 后端 AuthController 是 @RequestBody String（JSON 字符串），需带引号序列化
-  const res = await fetch(resolveApiUrl('/api/auth/token/refresh'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(auth.refreshToken),
-  })
-  const result = (await res.json().catch(() => null)) as {
-    code?: number
-    message?: string
-    data?: { accessToken?: string; refreshToken?: string }
-  } | null
+  const { res, result } = await fetchJson<{ accessToken?: string; refreshToken?: string }>(
+    resolveApiUrl('/api/auth/token/refresh'),
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(startingRefreshToken),
+    },
+  )
   if (!res.ok || !result || result.code !== 200 || !result.data?.accessToken || !result.data.refreshToken) {
-    throw new ApiError(result?.message ?? '登录已过期', result?.code ?? 401)
+    throw new ApiError(
+      result?.message ?? (res.ok ? '登录已过期' : `请求失败（${res.status}）`),
+      result?.code ?? (res.ok ? 401 : res.status),
+    )
+  }
+  // 防止刷新请求在途期间已登出或切换账号，把旧会话写回存储
+  if (auth.refreshToken !== startingRefreshToken) {
+    throw new ApiError('登录状态已失效', 401)
   }
   auth.setAccessToken(result.data.accessToken)
   auth.setRefreshToken(result.data.refreshToken)
@@ -77,51 +106,63 @@ function forceLogout() {
  */
 export async function request<T>(url: string, options: RequestOptions = {}): Promise<T> {
   const auth = useAuthStore()
-  const headers: Record<string, string> = {}
-  const body = options.body
-  const isForm = body instanceof FormData
-  if (body !== undefined && !isForm) {
-    headers['Content-Type'] = 'application/json'
-  }
-  if (options.auth !== false && auth.accessToken) {
-    headers['Authorization'] = `Bearer ${auth.accessToken}`
-  }
+  const useAuth = options.auth !== false
 
-  const doFetch = () =>
-    fetch(resolveApiUrl(url), {
+  const buildFetchInit = (tokenOverride?: string): RequestInit => {
+    const headers: Record<string, string> = {}
+    const resolvedBody =
+      typeof options.body === 'function' ? (options.body as () => unknown)() : options.body
+    const isForm = resolvedBody instanceof FormData
+    if (resolvedBody !== undefined && !isForm) {
+      headers['Content-Type'] = 'application/json'
+    }
+    const token = tokenOverride ?? auth.accessToken
+    if (useAuth && token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+    return {
       method: options.method ?? 'GET',
       headers,
-      body: isForm ? body : body !== undefined ? JSON.stringify(body) : undefined,
-    })
-
-  let res: Response
-  try {
-    res = await doFetch()
-  } catch {
-    throw new ApiError('网络连接失败，请检查网络')
-  }
-
-  let result = (await res.json().catch(() => null)) as
-    | { code?: number; message?: string; data?: T }
-    | null
-
-  // access token 过期：刷新后重放一次
-  if (result?.code === 401 && options.auth !== false) {
-    try {
-      const newToken = await refreshOnce()
-      headers['Authorization'] = `Bearer ${newToken}`
-      res = await doFetch()
-      result = (await res.json().catch(() => null)) as
-        | { code?: number; message?: string; data?: T }
-        | null
-    } catch (e) {
-      forceLogout()
-      throw e instanceof ApiError ? e : new ApiError('登录已过期，请重新登录', 401)
+      body: isForm ? resolvedBody : resolvedBody !== undefined ? JSON.stringify(resolvedBody) : undefined,
     }
   }
 
+  const toRefreshError = (e: unknown): ApiError => {
+    if (options.forceLogoutOnRefreshFail !== false) {
+      forceLogout()
+    }
+    return e instanceof ApiError ? e : new ApiError('登录已过期，请重新登录', 401)
+  }
+
+  // 若已有刷新在进行，先等待其完成再读取令牌与请求体，避免并发下旧 refreshToken 与新 accessToken 混用
+  if (useAuth && refreshing) {
+    try {
+      await refreshing
+    } catch (e) {
+      throw toRefreshError(e)
+    }
+  }
+
+  const targetUrl = resolveApiUrl(url)
+  let { res, result } = await fetchJson<T>(targetUrl, buildFetchInit())
+
+  // access token 过期：刷新后重放一次（重放时重新求值 body，确保携带最新的 refreshToken）
+  const unauthorized = result?.code === 401 || (res.status === 401 && result?.code === undefined)
+  if (unauthorized && useAuth) {
+    let newToken: string
+    try {
+      newToken = await refreshOnce()
+    } catch (e) {
+      throw toRefreshError(e)
+    }
+    ;({ res, result } = await fetchJson<T>(targetUrl, buildFetchInit(newToken)))
+  }
+
   if (!res.ok || !result || result.code !== 200) {
-    throw new ApiError(result?.message ?? `请求失败（${res.status}）`, result?.code)
+    throw new ApiError(
+      result?.message ?? `请求失败（${res.status}）`,
+      result?.code ?? (res.ok ? undefined : res.status),
+    )
   }
 
   return result.data as T

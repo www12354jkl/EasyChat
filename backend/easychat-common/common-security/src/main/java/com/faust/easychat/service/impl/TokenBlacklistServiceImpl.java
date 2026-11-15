@@ -25,15 +25,18 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
 
     @Override
     public void blacklist(String token, long remainingMs) {
-        if (remainingMs <= 0) {
+        if (token == null || token.isBlank() || remainingMs <= 0) {
             return;
         }
-        redisTemplate.opsForValue().set(KEY_PREFIX + token, "1", remainingMs, TimeUnit.MILLISECONDS);
+        redisTemplate.opsForValue().set(KEY_PREFIX + token.trim(), "1", remainingMs, TimeUnit.MILLISECONDS);
     }
 
     @Override
     public boolean isBlacklisted(String token) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey(KEY_PREFIX + token));
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+        return Boolean.TRUE.equals(redisTemplate.hasKey(KEY_PREFIX + token.trim()));
     }
 
     @Override

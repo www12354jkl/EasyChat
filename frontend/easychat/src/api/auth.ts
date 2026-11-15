@@ -1,4 +1,5 @@
 import { request } from './request'
+import { useAuthStore } from '@/stores/auth'
 
 export interface LoginParams {
   email: string
@@ -65,7 +66,12 @@ export function forgetPassword(params: ForgetPasswordParams): Promise<void> {
   return request<void>('/api/auth/forget-password', { method: 'PUT', body: params, auth: false })
 }
 
-// 登出：后端将 accessToken 与 refreshToken 一并拉黑
-export function logout(refreshToken: string): Promise<void> {
-  return request<void>('/api/auth/logout', { method: 'POST', body: { refreshToken } })
+// 登出：后端将 accessToken 与 refreshToken 一并拉黑；body 动态求值，确保 401 自动刷新轮换后重放携带最新 refreshToken
+export function logout(): Promise<void> {
+  const auth = useAuthStore()
+  return request<void>('/api/auth/logout', {
+    method: 'POST',
+    body: () => ({ refreshToken: auth.refreshToken ?? '' }),
+    forceLogoutOnRefreshFail: false,
+  })
 }

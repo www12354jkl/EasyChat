@@ -27,6 +27,7 @@ const contactsNotify = useContactsNotifyStore()
 const menuOpen = ref(false)
 const pwdModalOpen = ref(false)
 const friendVerify = ref(false)
+const loggingOut = ref(false)
 
 function handleConversationRemoved(e: ConversationRemovedEvent) {
   if (e?.id) {
@@ -103,14 +104,23 @@ onUnmounted(() => {
 })
 
 async function handleLogout() {
+  if (loggingOut.value) return
+  loggingOut.value = true
+  let logoutError: unknown = null
   try {
-    await logout(auth.refreshToken ?? '')
-  } catch {
-    // 后端拉黑失败不阻塞登出
+    await logout()
+  } catch (err) {
+    logoutError = err
   } finally {
     auth.clearSession()
-    toast.success('已退出登录')
-    router.push('/login')
+    loggingOut.value = false
+    if (logoutError) {
+      const detail = logoutError instanceof Error && logoutError.message ? logoutError.message : '服务异常'
+      toast.error(`已退出本地登录，但服务端令牌注销失败（${detail}）`, 5000)
+    } else {
+      toast.success('已退出登录')
+    }
+    await router.push('/login')
   }
 }
 
@@ -232,10 +242,11 @@ async function toggleFriendVerify() {
 
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center px-4 py-2.5 text-sm text-[var(--ec-danger)] transition-colors duration-200 hover:bg-red-50"
+            :disabled="loggingOut"
+            class="flex w-full cursor-pointer items-center px-4 py-2.5 text-sm text-[var(--ec-danger)] transition-colors duration-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
             @click="menuOpen = false; handleLogout()"
           >
-            退出登录
+            {{ loggingOut ? '正在退出…' : '退出登录' }}
           </button>
         </div>
       </div>

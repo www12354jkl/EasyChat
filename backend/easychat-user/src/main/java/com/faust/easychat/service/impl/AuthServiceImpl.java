@@ -3,6 +3,7 @@ package com.faust.easychat.service.impl;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 
 import com.faust.easychat.dto.user.AuthResponse;
 import com.faust.easychat.dto.user.ForgetPasswordRequest;
@@ -24,6 +26,7 @@ import com.faust.easychat.service.AuthService;
 import com.faust.easychat.service.TokenBlacklistService;
 import com.faust.easychat.util.EmailUtil;
 import com.faust.easychat.util.JwtUtil;
+import com.faust.easychat.util.TokenUtils;
 import com.faust.easychat.exception.AppException;
 
 import lombok.RequiredArgsConstructor;
@@ -148,11 +151,13 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(String authHeader, String refreshToken) {
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            blacklistToken(authHeader.substring(7));
+        String accessToken = TokenUtils.extractBearerToken(authHeader);
+        if (accessToken != null) {
+            blacklistToken(accessToken);
         }
-        if (refreshToken != null && !refreshToken.isBlank()) {
-            blacklistToken(refreshToken);
+        String normalizedRefreshToken = TokenUtils.normalizeToken(refreshToken);
+        if (normalizedRefreshToken != null) {
+            blacklistToken(normalizedRefreshToken);
         }
     }
 
@@ -160,23 +165,27 @@ public class AuthServiceImpl implements AuthService {
         try {
             long remaining = jwtUtil.getTokenRemainingMs(token);
             tokenBlacklistService.blacklist(token, remaining);
-        } catch (Exception e) {
-            log.warn("Failed to blacklist token", e);
+        } catch (ExpiredJwtException e) {
+            log.debug("Token already expired, skipping blacklist", e);
+        } catch (JwtException | IllegalArgumentException e) {
+            log.warn("Invalid token cannot be blacklisted: {}", e.getMessage());
+            throw AppException.tokenInvalid();
         }
     }
 
     @Override
     public TokenRefreshResponse refreshAccessToken(String refreshToken) {
-        if (refreshToken != null && refreshToken.length() >= 2
-                && refreshToken.startsWith("\"") && refreshToken.endsWith("\"")) {
-            refreshToken = refreshToken.substring(1, refreshToken.length() - 1);
+        String normalizedRefreshToken = TokenUtils.normalizeToken(refreshToken);
+        if (normalizedRefreshToken == null) {
+            log.warn("refresh rejected: empty token");
+            throw AppException.tokenInvalid();
         }
-        if (tokenBlacklistService.isBlacklisted(refreshToken)) {
+        if (tokenBlacklistService.isBlacklisted(normalizedRefreshToken)) {
             log.warn("refresh rejected: blacklisted");
             throw AppException.tokenInvalid();
         }
         try {
-            Claims claims = jwtUtil.parseToken(refreshToken);
+            Claims claims = jwtUtil.parseToken(normalizedRefreshToken);
             if (!jwtUtil.isRefreshToken(claims)) {
                 log.warn("refresh rejected: type={}", claims.get("type"));
                 throw AppException.tokenInvalid();
@@ -186,13 +195,17 @@ public class AuthServiceImpl implements AuthService {
                 throw AppException.tokenInvalid();
             }
             String userId = claims.getSubject();
+            if (userId == null || userId.isBlank()) {
+                log.warn("refresh rejected: blank subject");
+                throw AppException.tokenInvalid();
+            }
             TokenRefreshResponse response = new TokenRefreshResponse();
             response.setAccessToken(jwtUtil.generateAccessToken(userId));
             response.setRefreshToken(jwtUtil.generateRefreshToken(userId));
             // 旧 refreshToken 立即作废。响应若丢失，客户端只能重新登录
-            blacklistToken(refreshToken);
+            blacklistToken(normalizedRefreshToken);
             return response;
-        } catch (AppException e) {
+        } catch (AppException | DataAccessException e) {
             throw e;
         } catch (ExpiredJwtException e) {
             throw AppException.tokenExpired();
