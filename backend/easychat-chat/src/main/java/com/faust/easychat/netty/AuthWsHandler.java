@@ -83,6 +83,12 @@ public class AuthWsHandler extends ChannelInboundHandlerAdapter {
     }
 
     @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        sessionManager.unregister(ctx.channel());
+        super.channelInactive(ctx);
+    }
+
+    @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         ctx.close();
     }

@@ -2,7 +2,6 @@ package com.faust.easychat.service.impl;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -128,18 +127,14 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     public String uploadGroupAvatar(String id, MultipartFile file) {
-        if (file.isEmpty()) {
+        if (file == null || file.isEmpty()) {
             throw AppException.badRequest("请选择文件");
         }
 
-        String originalFilename = file.getOriginalFilename();
-        String suffix = null;
-        if (originalFilename != null) {
-            suffix = originalFilename.substring(originalFilename.lastIndexOf("."));
-        }
-        if (suffix == null || !Arrays.asList(".jpg", ".jpeg", ".png", ".gif", ".webp").contains(suffix.toLowerCase())) {
-            throw AppException.badRequest("只支持 jpg/jpeg/png/gif/webp 格式");
-        }
+        String suffix = CosUtil.requireSupportedSuffix(
+                file.getOriginalFilename(),
+                CosUtil.IMAGE_SUFFIXES,
+                "只支持 jpg/jpeg/png/gif/webp 格式");
 
         if (file.getSize() > 2 * 1024 * 1024) {
             throw AppException.badRequest("文件大小不能超过2MB");
@@ -836,7 +831,7 @@ public class GroupServiceImpl implements GroupService {
         if (message == null) {
             return;
         }
-        UserBriefDTO sender = userQueryService.getUserById(message.getSenderId());
+        UserBriefDTO sender = UserQuerySupport.findUserOptional(userQueryService, message.getSenderId());
         MessageDTO dto = new MessageDTO();
         dto.setId(message.getId());
         dto.setContent(message.getContent());
@@ -866,14 +861,7 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private Map<String, UserBriefDTO> fetchUserMap(List<String> userIds) {
-        if (userIds == null || userIds.isEmpty()) {
-            return Map.of();
-        }
-        List<UserBriefDTO> users = userQueryService.batchGetUsers(userIds);
-        if (users == null) {
-            return Map.of();
-        }
-        return users.stream().collect(Collectors.toMap(UserBriefDTO::getUserId, u -> u, (x, y) -> x));
+        return UserQuerySupport.fetchUserMapSafely(userQueryService, userIds);
     }
 
     private List<String> listGroupAdminIds(Conversation group) {

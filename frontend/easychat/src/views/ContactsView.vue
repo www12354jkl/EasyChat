@@ -21,7 +21,7 @@ import {
 import { formatTime, useChatStore } from '@/stores/chat'
 import { useContactsNotifyStore } from '@/stores/contactsNotify'
 import { useToastStore } from '@/stores/toast'
-import { ws } from '@/api/ws'
+import { ws, type FriendRequestEvent } from '@/api/ws'
 import { ecAvatarStyle } from '@/utils/ec-ui'
 
 type Tab = 'newFriends' | 'myGroups' | 'joinedGroups' | 'friends'

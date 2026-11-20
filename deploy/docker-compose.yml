@@ -1,7 +1,7 @@
 name: easychat
 
 # 全栈本地开发用（MySQL + Redis + Nacos + 三服务都在本机 Docker 里起）
-# 若中间件已在远程服务器（如 106.54.58.197），请用 docker-compose.apps.yml
+# 若中间件已在远程服务器，请用 docker-compose.apps.yml
 
 services:
   mysql:
@@ -52,7 +52,7 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_ADVERTISED_HOST:-106.54.58.197}:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${KAFKA_ADVERTISED_HOST:-localhost}:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
@@ -74,8 +74,11 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:mysql://mysql:3306/easychat_user?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
       DB_PASSWORD: ${DB_PASSWORD:-root}
+      REDIS_HOST: redis
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me-32chars!!}
+      NACOS_SERVER_ADDR: nacos:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
     depends_on:
@@ -98,8 +101,11 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: docker
+      DB_URL: jdbc:mysql://mysql:3306/easychat_chat?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
       DB_PASSWORD: ${DB_PASSWORD:-root}
+      REDIS_HOST: redis
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me-32chars!!}
+      NACOS_SERVER_ADDR: nacos:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
@@ -132,6 +138,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me-32chars!!}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      NACOS_SERVER_ADDR: nacos:8848
       NACOS_USERNAME: ${NACOS_USERNAME:-nacos}
       NACOS_PASSWORD: ${NACOS_PASSWORD:-nacos}
     depends_on:

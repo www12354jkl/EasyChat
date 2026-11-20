@@ -1,10 +1,24 @@
 /**
  * 测试：单方面删除聊天记录 + 对方记录保留
- * 用法：node test-cleared-at.js
+ * 用法：TEST_USER_A_EMAIL=... TEST_USER_A_PASSWORD=... TEST_USER_B_EMAIL=... TEST_USER_B_PASSWORD=... node test-cleared-at.js
  */
+function requireEnv(name) {
+  const value = process.env[name]
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name} (e.g. ${name}=<placeholder>)`)
+  }
+  return value
+}
+
 const BASE = process.env.API_BASE || 'http://localhost:8080'
-const USER_A = { email: 'www12354jkl@outlook.com', password: 'www12354jkl' }
-const USER_B = { email: '3376837436@qq.com', password: 'www12354jkl' }
+const USER_A = {
+  email: requireEnv('TEST_USER_A_EMAIL'),
+  password: requireEnv('TEST_USER_A_PASSWORD'),
+}
+const USER_B = {
+  email: requireEnv('TEST_USER_B_EMAIL'),
+  password: requireEnv('TEST_USER_B_PASSWORD'),
+}
 
 async function login({ email, password }) {
   const res = await fetch(`${BASE}/api/auth/login`, {

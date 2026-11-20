@@ -1,13 +1,10 @@
 import assert from 'node:assert/strict'
+import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { after, before, beforeEach, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { createSSRApp, h } from 'vue'
-import { renderToString } from 'vue/server-renderer'
 import { parse, compileScript } from 'vue/compiler-sfc'
-import { createPinia, setActivePinia } from 'pinia'
-import { createMemoryHistory, createRouter } from 'vue-router'
 import { createServer } from 'vite'
 
 function createStorageMock() {
@@ -37,6 +34,13 @@ function jsonResponse(body, status = 200) {
 
 describe('frontend logout & token-blacklisting flow', () => {
   let viteServer
+  let createSSRApp
+  let h
+  let renderToString
+  let createPinia
+  let setActivePinia
+  let createMemoryHistory
+  let createRouter
   let useAuthStore
   let useToastStore
   let requestMod
@@ -74,7 +78,8 @@ describe('frontend logout & token-blacklisting flow', () => {
       },
     }
 
-    const rootDir = fileURLToPath(new URL('../..', import.meta.url))
+    // 规范化 Windows 盘符大小写（如 d: vs D:），避免 Node ESM 与 Vite SSR 加载两份 vue/pinia 实例
+    const rootDir = fsSync.realpathSync.native(fileURLToPath(new URL('../..', import.meta.url)))
     viteServer = await createServer({
       root: rootDir,
       server: { middlewareMode: true },
@@ -85,9 +90,20 @@ describe('frontend logout & token-blacklisting flow', () => {
         {
           name: 'test-homeview-setup-bindings',
           resolveId(id) {
-            if (id === '/@homeview-test.ts') return id
+            if (id === '/@homeview-test.ts' || id === '/@test-deps.ts') return id
           },
           async load(id) {
+            if (id === '/@test-deps.ts') {
+              return {
+                code: [
+                  "export { createSSRApp, h } from 'vue'",
+                  "export { renderToString } from 'vue/server-renderer'",
+                  "export { createPinia, setActivePinia } from 'pinia'",
+                  "export { createMemoryHistory, createRouter } from 'vue-router'",
+                ].join('\n'),
+                map: null,
+              }
+            }
             if (id === '/@homeview-test.ts') {
               const homePath = path.join(rootDir, 'src/views/HomeView.vue')
               const src = await fs.readFile(homePath, 'utf8')
@@ -103,6 +119,9 @@ describe('frontend logout & token-blacklisting flow', () => {
       ],
     })
 
+    // 统一经由 Vite SSR 模块图加载运行时依赖，确保与被测模块共享同一份 Pinia / Vue 实例
+    ;({ createSSRApp, h, renderToString, createPinia, setActivePinia, createMemoryHistory, createRouter } =
+      await viteServer.ssrLoadModule('/@test-deps.ts'))
     ;({ useAuthStore } = await viteServer.ssrLoadModule('/src/stores/auth.ts'))
     ;({ useToastStore } = await viteServer.ssrLoadModule('/src/stores/toast.ts'))
     requestMod = await viteServer.ssrLoadModule('/src/api/request.ts')

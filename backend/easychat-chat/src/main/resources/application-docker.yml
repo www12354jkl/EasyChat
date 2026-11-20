@@ -14,6 +14,8 @@ spring:
                 server-addr: ${NACOS_SERVER_ADDR}
                 username: ${NACOS_USERNAME:nacos}
                 password: ${NACOS_PASSWORD:}
+    kafka:
+        bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 jwt:
     secret: ${JWT_SECRET}
@@ -27,10 +29,6 @@ easychat:
         delivery: ${WS_DELIVERY:local}
     kafka:
         ws-push-topic: easychat-ws-push
-
-spring:
-    kafka:
-        bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 tencent:
   cos:

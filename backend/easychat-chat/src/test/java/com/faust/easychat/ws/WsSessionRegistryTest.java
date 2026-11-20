@@ -2,9 +2,12 @@ package com.faust.easychat.ws;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 @ExtendWith(MockitoExtension.class)
 class WsSessionRegistryTest {
@@ -45,5 +49,28 @@ class WsSessionRegistryTest {
 
         assertTrue(registry.isOnline("user-1"));
         assertFalse(registry.isOnline("user-2"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void refresh_executesCasExpireScriptForInstance() {
+        registry.refresh("user-1");
+
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(List.of("ws:online:user-1")),
+                eq("instance-1"),
+                eq("300"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void markOffline_executesCasDeleteScriptForInstance() {
+        registry.markOffline("user-1");
+
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(List.of("ws:online:user-1")),
+                eq("instance-1"));
     }
 }

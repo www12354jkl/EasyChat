@@ -1,6 +1,6 @@
 # Redpanda：兼容 Kafka 协议，单节点部署简单
 # 服务器：
-#   export KAFKA_ADVERTISED_HOST=106.54.58.197
+#   export KAFKA_ADVERTISED_HOST=your-server-ip
 #   docker compose -f docker-compose.kafka.yml down -v
 #   docker compose -f docker-compose.kafka.yml up -d
 #   docker logs easychat-kafka --tail 30

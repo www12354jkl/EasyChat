@@ -86,18 +86,14 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public String uploadAvatar(String id, MultipartFile file) {
-        if (file.isEmpty()) {
+        if (file == null || file.isEmpty()) {
             throw AppException.badRequest("请选择文件");
         }
 
-        String originalFilename = file.getOriginalFilename();
-        String suffix = null;
-        if (originalFilename != null) {
-            suffix = originalFilename.substring(originalFilename.lastIndexOf("."));
-        }
-        if (suffix == null || !Arrays.asList(".jpg", ".jpeg", ".png", ".gif", ".webp").contains(suffix.toLowerCase())) {
-            throw AppException.badRequest("只支持 jpg/jpeg/png/gif/webp 格式");
-        }
+        String suffix = CosUtil.requireSupportedSuffix(
+                file.getOriginalFilename(),
+                CosUtil.IMAGE_SUFFIXES,
+                "只支持 jpg/jpeg/png/gif/webp 格式");
 
         if (file.getSize() > 2 * 1024 * 1024) {
             throw AppException.badRequest("文件大小不能超过2MB");

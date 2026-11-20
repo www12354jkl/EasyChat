@@ -3,7 +3,10 @@ package com.faust.easychat.service.impl;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -15,11 +18,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import com.faust.easychat.dto.user.ResetPasswordRequest;
 import com.faust.easychat.dto.user.UserBriefDTO;
 import com.faust.easychat.entity.User;
+import com.faust.easychat.enums.ReturnCodeEnum;
 import com.faust.easychat.exception.AppException;
 import com.faust.easychat.mapper.UserMapper;
 import com.faust.easychat.mapper.UserSettingsMapper;
@@ -96,6 +101,54 @@ class UserServiceImplTest {
         userService.resetPassword("id-1", request);
 
         verify(tokenBlacklistService).revokeUserTokens("id-1");
+    }
+
+    @Test
+    void uploadAvatar_extensionlessFilename_throwsBadRequest() {
+        MockMultipartFile file = new MockMultipartFile("file", "avatar", "image/png", new byte[] {1, 2, 3});
+
+        AppException ex = assertThrows(AppException.class, () -> userService.uploadAvatar("id-1", file));
+
+        assertEquals(ReturnCodeEnum.BAD_REQUEST, ex.getReturnCode());
+        assertEquals("只支持 jpg/jpeg/png/gif/webp 格式", ex.getMessage());
+        verify(cosUtil, never()).upload(any(), any());
+    }
+
+    @Test
+    void uploadAvatar_nullFilename_throwsBadRequest() {
+        MockMultipartFile file = new MockMultipartFile("file", null, "image/png", new byte[] {1, 2, 3});
+
+        AppException ex = assertThrows(AppException.class, () -> userService.uploadAvatar("id-1", file));
+
+        assertEquals(ReturnCodeEnum.BAD_REQUEST, ex.getReturnCode());
+        assertEquals("只支持 jpg/jpeg/png/gif/webp 格式", ex.getMessage());
+        verify(cosUtil, never()).upload(any(), any());
+    }
+
+    @Test
+    void uploadAvatar_unsupportedExtension_throwsBadRequest() {
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.bmp", "image/bmp", new byte[] {1, 2, 3});
+
+        AppException ex = assertThrows(AppException.class, () -> userService.uploadAvatar("id-1", file));
+
+        assertEquals(ReturnCodeEnum.BAD_REQUEST, ex.getReturnCode());
+        assertEquals("只支持 jpg/jpeg/png/gif/webp 格式", ex.getMessage());
+        verify(cosUtil, never()).upload(any(), any());
+    }
+
+    @Test
+    void uploadAvatar_validUppercaseExtension_uploadsAndUpdatesUser() {
+        User user = user("id-1", "Alice", "old.png");
+        when(userMapper.selectById("id-1")).thenReturn(user);
+        when(cosUtil.upload(any(), argThat(path -> path.startsWith("easychat/user-avatars/") && path.endsWith(".png"))))
+                .thenReturn("https://cdn.example.com/new.png");
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.PNG", "image/png", new byte[] {1, 2, 3});
+
+        String url = userService.uploadAvatar("id-1", file);
+
+        assertEquals("https://cdn.example.com/new.png", url);
+        assertEquals("https://cdn.example.com/new.png", user.getAvatar());
+        verify(userMapper).updateById(user);
     }
 
     private static User user(String id, String nickname, String avatar) {

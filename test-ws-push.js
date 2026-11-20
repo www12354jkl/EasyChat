@@ -1,10 +1,30 @@
-const { chromium } = require('D:/Node.js/node_global/node_modules/@playwright/mcp/node_modules/playwright');
+const os = require('node:os');
+const path = require('node:path');
 
-const BASE = 'http://localhost:5173';
-const CONV_ID = '36b3ffb5dfbcabb6a65a5e905d4a819d_866d73991b5c87abdbf2e965facc5fe3';
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name} (e.g. ${name}=<placeholder>)`);
+  }
+  return value;
+}
+
+const BASE = process.env.WEB_BASE || 'http://localhost:5173';
+const API = process.env.API_BASE || 'http://127.0.0.1:8081';
+const USER_A = {
+  email: requireEnv('TEST_USER_A_EMAIL'),
+  password: requireEnv('TEST_USER_A_PASSWORD'),
+};
+const USER_B = {
+  email: requireEnv('TEST_USER_B_EMAIL'),
+  password: requireEnv('TEST_USER_B_PASSWORD'),
+};
+const CONV_ID = requireEnv('TEST_CONV_ID');
+
+const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright');
 
 async function login(email, password) {
-  const res = await fetch('http://127.0.0.1:8081/api/auth/login', {
+  const res = await fetch(`${API}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
@@ -15,8 +35,8 @@ async function login(email, password) {
 }
 
 (async () => {
-  const a = await login('www12354jkl@outlook.com', 'www12354jkl');
-  const b = await login('3376837436@qq.com', 'www12354jkl');
+  const a = await login(USER_A.email, USER_A.password);
+  const b = await login(USER_B.email, USER_B.password);
 
   const browser = await chromium.launch({ headless: true });
 
@@ -54,8 +74,8 @@ async function login(email, password) {
     console.log('B body:', (await B.page.textContent('body')).slice(0, 2000));
   }
 
-  await A.page.screenshot({ path: 'C:/tmp/chat-A.png' });
-  await B.page.screenshot({ path: 'C:/tmp/chat-B.png' });
+  await A.page.screenshot({ path: path.join(os.tmpdir(), 'chat-A.png') });
+  await B.page.screenshot({ path: path.join(os.tmpdir(), 'chat-B.png') });
   await browser.close();
 })().catch((e) => {
   console.error('SCRIPT_FAIL', e);

@@ -17,6 +17,8 @@ dist-ssr/
 # 环境与密钥
 .env
 .env.*
+!.env.example
+!.env*.example
 **/application-local.yml
 
 # 工具与缓存

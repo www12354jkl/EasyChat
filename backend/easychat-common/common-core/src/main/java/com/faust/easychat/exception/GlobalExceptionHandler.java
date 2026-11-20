@@ -69,9 +69,14 @@ public class GlobalExceptionHandler {
             case 401, 1007, 1008, 1012 -> HttpStatus.UNAUTHORIZED;
             case 403, 1011 -> HttpStatus.FORBIDDEN;                       // 1011 账号禁用
             case 404, 1001, 2000 -> HttpStatus.NOT_FOUND;                 // 1001 用户不存在 / 2000 会话不存在
+            case 405 -> HttpStatus.METHOD_NOT_ALLOWED;
             case 408 -> HttpStatus.REQUEST_TIMEOUT;
             case 409, 1002, 1003 -> HttpStatus.CONFLICT;                  // 1002/1003 用户名/邮箱已存在
+            case 415 -> HttpStatus.UNSUPPORTED_MEDIA_TYPE;
             case 429 -> HttpStatus.TOO_MANY_REQUESTS;
+            case 502 -> HttpStatus.BAD_GATEWAY;
+            case 503 -> HttpStatus.SERVICE_UNAVAILABLE;
+            case 504 -> HttpStatus.GATEWAY_TIMEOUT;
             // 参数类业务错误：1004 密码错 / 1005/1006 验证码 / 1009/1010 格式
             case 1004, 1005, 1006, 1009, 1010 -> HttpStatus.BAD_REQUEST;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;

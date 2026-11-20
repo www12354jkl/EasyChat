@@ -1,12 +1,27 @@
 /**
  * 浏览器测试：IndexedDB 本地缓存 + 清空后当前聊天窗清空
+ * 用法：TEST_USER_A_EMAIL=... TEST_USER_A_PASSWORD=... TEST_USER_B_EMAIL=... TEST_USER_B_PASSWORD=... node test-local-cache.js
  */
-const { chromium } = require('playwright')
+function requireEnv(name) {
+  const value = process.env[name]
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name} (e.g. ${name}=<placeholder>)`)
+  }
+  return value
+}
 
-const BASE = 'http://localhost:5173'
-const API = 'http://localhost:8080'
-const USER_A = { email: 'www12354jkl@outlook.com', password: 'www12354jkl' }
-const USER_B = { email: '3376837436@qq.com', password: 'www12354jkl' }
+const BASE = process.env.WEB_BASE || 'http://localhost:5173'
+const API = process.env.API_BASE || 'http://localhost:8080'
+const USER_A = {
+  email: requireEnv('TEST_USER_A_EMAIL'),
+  password: requireEnv('TEST_USER_A_PASSWORD'),
+}
+const USER_B = {
+  email: requireEnv('TEST_USER_B_EMAIL'),
+  password: requireEnv('TEST_USER_B_PASSWORD'),
+}
+
+const { chromium } = require(process.env.PLAYWRIGHT_PATH || 'playwright')
 
 async function login(email, password) {
   const res = await fetch(`${API}/api/auth/login`, {

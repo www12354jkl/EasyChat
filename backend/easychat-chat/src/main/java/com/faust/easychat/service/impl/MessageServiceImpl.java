@@ -179,7 +179,7 @@ public class MessageServiceImpl implements MessageService {
         messageMapper.updateById(message);
         updateConversationLastMessageIfNeeded(message);
 
-        UserBriefDTO sender = userQueryService.getUserById(message.getSenderId());
+        UserBriefDTO sender = UserQuerySupport.findUserOptional(userQueryService, message.getSenderId());
         MessageDTO dto = toMessageDto(message, sender);
 
         List<ConversationMember> members = conversationMemberMapper
@@ -293,17 +293,9 @@ public class MessageServiceImpl implements MessageService {
         return r;
     }
 
-    /** 批量查用户信息，key=userId */
+    /** 批量查用户信息，key=userId（非关键展示路径：user-service 不可用时降级为空） */
     private Map<String, UserBriefDTO> fetchUserMap(List<String> userIds) {
-        if (userIds == null || userIds.isEmpty()) {
-            return Map.of();
-        }
-        List<UserBriefDTO> users = userQueryService.batchGetUsers(userIds);
-        if (users == null) {
-            return Map.of();
-        }
-        return users.stream()
-                .collect(Collectors.toMap(UserBriefDTO::getUserId, u -> u, (x, y) -> x));
+        return UserQuerySupport.fetchUserMapSafely(userQueryService, userIds);
     }
 
     @Override
@@ -436,14 +428,7 @@ public class MessageServiceImpl implements MessageService {
     }
 
     static String chatFileSuffix(String original) {
-        if (original == null || !original.contains(".")) {
-            throw AppException.badRequest("不支持的文件类型");
-        }
-        String suffix = original.substring(original.lastIndexOf('.')).toLowerCase();
-        if (!CHAT_FILE_SUFFIXES.contains(suffix)) {
-            throw AppException.badRequest("不支持的文件类型");
-        }
-        return suffix;
+        return CosUtil.requireSupportedSuffix(original, CHAT_FILE_SUFFIXES, "不支持的文件类型");
     }
 
     static String summarizeLastMessage(Integer contentType, String content) {

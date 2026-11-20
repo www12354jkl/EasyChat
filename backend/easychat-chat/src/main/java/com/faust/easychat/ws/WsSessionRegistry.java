@@ -14,6 +14,16 @@ public class WsSessionRegistry {
     private static final String KEY_PREFIX = "ws:online:";
     private static final Duration SESSION_TTL = Duration.ofMinutes(5);
 
+    private static final DefaultRedisScript<Long> REFRESH_SCRIPT = new DefaultRedisScript<>(
+            """
+            if redis.call('get', KEYS[1]) == ARGV[1] then
+              return redis.call('expire', KEYS[1], tonumber(ARGV[2]))
+            else
+              return 0
+            end
+            """,
+            Long.class);
+
     private static final DefaultRedisScript<Long> OFFLINE_SCRIPT = new DefaultRedisScript<>(
             """
             if redis.call('get', KEYS[1]) == ARGV[1] then
@@ -39,10 +49,11 @@ public class WsSessionRegistry {
     }
 
     public void refresh(String userId) {
-        String redisKey = key(userId);
-        if (Boolean.TRUE.equals(redisTemplate.hasKey(redisKey))) {
-            redisTemplate.expire(redisKey, SESSION_TTL);
-        }
+        redisTemplate.execute(
+                REFRESH_SCRIPT,
+                List.of(key(userId)),
+                instanceId,
+                String.valueOf(SESSION_TTL.toSeconds()));
     }
 
     public void markOffline(String userId) {

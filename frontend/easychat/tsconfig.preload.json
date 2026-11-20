@@ -1,0 +1,19 @@
+// TSConfig for Electron preload scripts (sandboxed Chromium context with Node/Electron preload APIs).
+{
+  "extends": "@tsconfig/node24/tsconfig.json",
+  "include": [
+    "electron/preload.ts"
+  ],
+  "compilerOptions": {
+    "lib": [
+      "es2024",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.preload.tsbuildinfo"
+  }
+}
